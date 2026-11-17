@@ -1,3 +1,4 @@
+mod chatmix;
 mod engine;
 mod eq;
 mod eq_editor;

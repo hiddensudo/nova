@@ -1,3 +1,4 @@
+mod chatmix;
 mod config;
 mod pulse;
 mod session;
@@ -7,12 +8,13 @@ use std::{
     fs::{self, OpenOptions},
     path::PathBuf,
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use pulse::{Sink, Stream};
 use session::{Session, on_nova_channel};
 
+pub use chatmix::Pair;
 pub use config::{Channel, Config};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -26,6 +28,7 @@ pub struct AppStream {
 pub struct Snapshot {
     pub config: Config,
     pub streams: Vec<AppStream>,
+    pub dial: Option<[u8; 2]>,
 }
 
 fn streams(currents: &[Stream], config: &Config) -> Vec<AppStream> {
@@ -48,6 +51,7 @@ pub fn snapshot() -> Result<Snapshot, String> {
     Ok(Snapshot {
         streams: streams(&inputs, &config),
         config,
+        dial: None,
     })
 }
 
@@ -75,9 +79,16 @@ pub fn run(
         format!("Мікшер Nova Control уже запущено або він недоступний ({error}).")
     })?;
     let mut controller = Controller::default();
+    let mut next_route = Instant::now();
     while !stop() {
-        update(controller.tick());
-        thread::sleep(Duration::from_millis(600));
+        if Instant::now() >= next_route {
+            update(controller.tick());
+            next_route = Instant::now() + Duration::from_millis(600);
+        }
+        if let Err(error) = controller.follow_dial() {
+            update(Err(error));
+        }
+        thread::sleep(Duration::from_millis(140));
     }
     Ok(())
 }
@@ -86,6 +97,9 @@ pub fn run(
 struct Controller {
     session: Option<Session>,
     levels: Option<[u8; 3]>,
+    base_levels: [u8; 3],
+    pair: Option<Pair>,
+    dial: Option<[u8; 2]>,
 }
 
 impl Controller {
@@ -94,6 +108,7 @@ impl Controller {
         let mut sinks = pulse::json::<Vec<Sink>>("sinks")?;
         let Some(output) = sinks.iter().find(|sink| sink.is_nova()).cloned() else {
             self.session = None;
+            self.dial = None;
             return Err("Очікую аудіовихід Nova 7 Gen 2 у PipeWire.".into());
         };
         let missing = Channel::ALL
@@ -110,12 +125,12 @@ impl Controller {
             self.levels = None;
             sinks = pulse::json::<Vec<Sink>>("sinks")?;
         }
-        if self.levels != Some(config.levels) {
-            for (channel, percent) in Channel::ALL.into_iter().zip(config.levels) {
-                pulse::call(&["set-sink-volume", channel.sink(), &format!("{percent}%")])?;
-            }
-            self.levels = Some(config.levels);
+        self.base_levels = config.levels;
+        if self.pair != config.pair {
+            self.pair = config.pair;
+            self.dial = None;
         }
+        self.apply_levels()?;
         let inputs = pulse::json::<Vec<Stream>>("sink-inputs")?;
         let session = self.session.as_mut().expect("session initialized");
         session.retain_streams(&inputs);
@@ -131,6 +146,37 @@ impl Controller {
         Ok(Snapshot {
             streams: streams(&inputs, &config),
             config,
+            dial: self.dial,
         })
+    }
+    fn follow_dial(&mut self) -> Result<(), String> {
+        if self.session.is_some()
+            && self.pair.is_some()
+            && let Ok(position) = crate::device::chatmix::position()
+            && self.dial != Some(position)
+        {
+            self.dial = Some(position);
+            self.apply_levels()?;
+        }
+        Ok(())
+    }
+
+    fn apply_levels(&mut self) -> Result<(), String> {
+        let mut levels = self.base_levels;
+        if let (Some(pair), Some(position)) = (self.pair, self.dial) {
+            levels = pair.levels(levels, position);
+        }
+        if self.levels != Some(levels) {
+            for (channel, percent) in Channel::ALL.into_iter().zip(levels) {
+                if self
+                    .levels
+                    .is_none_or(|previous| previous[channel as usize] != percent)
+                {
+                    pulse::call(&["set-sink-volume", channel.sink(), &format!("{percent}%")])?;
+                }
+            }
+            self.levels = Some(levels);
+        }
+        Ok(())
     }
 }

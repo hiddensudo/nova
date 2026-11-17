@@ -58,3 +58,5 @@ The EQ editor changes frequency, gain and Q for each peaking filter. Preview app
 ## PipeWire mixer
 
 Enable the mixer in Nova Control to create Game, Media and Chat sinks. Play audio in an application to select its channel. Channel levels and app assignments are stored in the user's XDG configuration and reapplied on the next mixer start. Keep the window open or use `nova-control mixer run` in a terminal. Requires PipeWire's Pulse server and `pactl`.
+
+Enable **Фізичне коліщатко ChatMix** (physical ChatMix dial) to balance any two channels, including Game and Media. The third channel keeps its own level. CLI commands include `nova-control mixer chatmix Game Media`, `nova-control mixer chatmix off` and `nova-control mixer dial`.

@@ -117,6 +117,8 @@ fn controls(ui: &mut Ui, state: &mut Snapshot) -> Result<(), String> {
         }
     }
     ui.separator();
+    super::chatmix::controls(ui, state)?;
+    ui.separator();
     ui.heading("Застосунки");
     if state.streams.is_empty() {
         ui.label("Запусти відтворення звуку в застосунку, щоб призначити йому канал.");

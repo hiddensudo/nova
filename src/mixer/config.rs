@@ -8,6 +8,8 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
+use super::Pair;
+
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Channel {
@@ -48,6 +50,7 @@ impl Channel {
 pub struct Config {
     pub routes: BTreeMap<String, Channel>,
     pub levels: [u8; 3],
+    pub pair: Option<Pair>,
 }
 
 impl Default for Config {
@@ -55,6 +58,7 @@ impl Default for Config {
         Self {
             routes: BTreeMap::new(),
             levels: [100; 3],
+            pair: None,
         }
     }
 }
@@ -67,6 +71,9 @@ impl Config {
                     .map_err(|error| format!("mixer.json: {error}"))?;
                 if config.levels.iter().any(|&level| level > 100) {
                     return Err("mixer.json: гучність каналу має бути 0–100.".into());
+                }
+                if let Some(pair) = config.pair {
+                    Pair::new(pair.left, pair.right)?;
                 }
                 Ok(config)
             }

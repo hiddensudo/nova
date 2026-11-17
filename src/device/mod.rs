@@ -1,9 +1,10 @@
+pub mod chatmix;
 pub mod eq;
 mod hidraw;
 mod protocol;
 mod usbfs;
 
-use std::{io, time::Duration};
+use std::{io, sync::Mutex, time::Duration};
 
 use hidraw::{Hidraw, HidrawPort};
 use protocol::{READ_TIMEOUT, transact};
@@ -13,6 +14,7 @@ pub use protocol::{Operation, Sidetone};
 
 // Report ID prefix for Linux hidraw plus the 64-byte USB payload.
 const REPORT_SIZE: usize = 65;
+static USB_TRANSACTION: Mutex<()> = Mutex::new(());
 
 pub fn detect() -> Result<String, String> {
     let (path, transport, availability) = match HidrawPort::find()? {
@@ -40,6 +42,7 @@ pub fn sidetone(operation: Operation) -> Result<Sidetone, String> {
 fn with_device<T>(
     operation: impl FnOnce(&mut dyn HidReports) -> Result<T, String>,
 ) -> Result<T, String> {
+    let _serial = USB_TRANSACTION.lock().map_err(|error| error.to_string())?;
     match HidrawPort::find()? {
         Some(port) => {
             let file = port.open()?;

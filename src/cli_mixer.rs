@@ -1,6 +1,6 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use crate::mixer::{self, Channel, Config, Pair};
+use crate::mixer::{self, ChannelIcon, Config, Pair, default_color};
 
 static STOP: AtomicBool = AtomicBool::new(false);
 
@@ -34,27 +34,39 @@ pub(super) fn dispatch(args: &[&str]) -> Result<(), String> {
             Ok(())
         }
         ["chatmix", "off"] => Config::edit(|config| config.pair = None),
-        ["chatmix", left, right] => {
-            let pair = Pair::new(Channel::parse(left)?, Channel::parse(right)?)?;
-            Config::edit(|config| config.pair = Some(pair))
-        }
+        ["chatmix", left, right] => Config::change(|config| {
+            config.pair = Some(Pair::new(config.parse(left)?, config.parse(right)?)?);
+            Ok(())
+        }),
         ["list"] => {
-            for app in mixer::snapshot()?.streams {
-                println!("{}\t{}\t{}", app.key, app.label, app.channel.map(Channel::name).unwrap_or("–"));
+            let state = mixer::snapshot()?;
+            for app in state.streams {
+                println!("{}\t{}\t{}", app.key, app.label, app.channel.map(|channel| state.config.name(channel)).unwrap_or("–"));
             }
             Ok(())
         }
         ["route", app, "auto"] => Config::edit(|config| { config.routes.remove(*app); }),
-        ["route", app, channel] => {
-            let channel = Channel::parse(channel)?;
-            Config::edit(|config| { config.routes.insert((*app).into(), channel); })
-        }
+        ["route", app, channel] => Config::change(|config| {
+            config.routes.insert((*app).into(), config.parse(channel)?);
+            Ok(())
+        }),
         ["volume", channel, percent] => {
-            let channel = Channel::parse(channel)?;
-            let percent = percent.parse::<u8>().ok().filter(|&v| v <= 100)
-                .ok_or_else(|| "Гучність має бути 0–100.".to_owned())?;
-            Config::edit(|config| config.levels[channel as usize] = percent)
+            let percent = percent.parse::<u8>().map_err(|_| "Гучність має бути 0–100.")?;
+            Config::change(|config| config.set_level(config.parse(channel)?, percent))
         }
-        _ => Err("nova-control mixer run|list|route <app-key> <Game|Media|Chat|auto>|volume <channel> <0–100>|chatmix <left> <right>|chatmix off|dial".into()),
+        ["channel", "list"] => {
+            let config = Config::load()?;
+            for channel in config.channels() {
+                println!("{}\t{}%", config.name(channel), config.level(channel));
+            }
+            Ok(())
+        }
+        ["channel", "add", name] => Config::change(|config| {
+            config.add_channel(name, default_color(), ChannelIcon::default(), config.channels().len())?;
+            Ok(())
+        }),
+        ["channel", "rename", channel, name] => Config::change(|config| config.rename_channel(config.parse(channel)?, name)),
+        ["channel", "remove", name] => Config::change(|config| config.remove_channel(config.parse(name)?)),
+        _ => Err("nova-control mixer run|list|route <app-key> <channel|auto>|volume <channel> <0–100>|chatmix <left> <right>|chatmix off|dial|channel list|channel add <name>|channel rename <channel> <name>|channel remove <channel>".into()),
     }
 }

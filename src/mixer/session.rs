@@ -13,7 +13,7 @@ pub(super) struct Session {
 }
 
 impl Session {
-    pub fn open(output: Sink) -> Result<Self, String> {
+    pub fn open(output: Sink, channels: &[Channel]) -> Result<Self, String> {
         let default_sink = pulse::call(&["get-default-sink"]).ok();
         let default_source = pulse::call(&["get-default-source"]).ok();
         cleanup(&output.name, |_| true)?;
@@ -23,17 +23,17 @@ impl Session {
             managed: BTreeSet::new(),
             modules: Vec::new(),
         };
-        let created = session.create_channels();
+        let created = session.create_channels(channels);
         // Restore defaults only if PipeWire selected one of our new nodes.
         if let (Some(before), Ok(after)) = (default_sink, pulse::call(&["get-default-sink"]))
-            && Channel::ALL.iter().any(|channel| channel.sink() == after)
+            && Channel::owns_sink(&after)
         {
             let _ = pulse::call(&["set-default-sink", &before]);
         }
         if let (Some(before), Ok(after)) = (default_source, pulse::call(&["get-default-source"]))
-            && Channel::ALL
-                .iter()
-                .any(|channel| format!("{}.monitor", channel.sink()) == after)
+            && after
+                .strip_suffix(".monitor")
+                .is_some_and(Channel::owns_sink)
         {
             let _ = pulse::call(&["set-default-source", &before]);
         }
@@ -41,15 +41,15 @@ impl Session {
         Ok(session)
     }
 
-    fn create_channels(&mut self) -> Result<(), String> {
-        for channel in Channel::ALL {
+    fn create_channels(&mut self, channels: &[Channel]) -> Result<(), String> {
+        for &channel in channels {
             self.load(&[
                 "load-module",
                 "module-null-sink",
                 &format!("sink_name={}", channel.sink()),
                 &format!(
                     "sink_properties=device.description='Nova {}' priority.session=0",
-                    channel.name()
+                    channel.builtin_name()
                 ),
             ])?;
             let target = self.output.name.clone();
@@ -88,14 +88,16 @@ impl Session {
             if current.name == channel.sink() {
                 return Ok(());
             }
-            if !Channel::ALL
-                .iter()
-                .any(|channel| channel.sink() == current.name)
-            {
+            if !Channel::owns_sink(&current.name) {
                 self.previous.insert(stream.index, current.name.clone());
             }
         }
-        pulse::call(&["move-sink-input", &stream.index.to_string(), channel.sink()]).map(|_| ())
+        pulse::call(&[
+            "move-sink-input",
+            &stream.index.to_string(),
+            &channel.sink(),
+        ])
+        .map(|_| ())
     }
 
     pub fn managed(&self, stream: u32) -> bool {
@@ -128,13 +130,7 @@ impl Drop for Session {
         let target = sinks
             .iter()
             .find(|sink| sink.name == self.output.name)
-            .or_else(|| {
-                sinks.iter().find(|sink| {
-                    !Channel::ALL
-                        .iter()
-                        .any(|channel| channel.sink() == sink.name)
-                })
-            });
+            .or_else(|| sinks.iter().find(|sink| !Channel::owns_sink(&sink.name)));
         if let Ok(streams) = pulse::json::<Vec<Stream>>("sink-inputs") {
             for stream in streams
                 .iter()
@@ -156,12 +152,9 @@ impl Drop for Session {
 }
 
 pub(super) fn on_nova_channel(stream: &Stream, sinks: &[Sink]) -> bool {
-    sinks.iter().any(|sink| {
-        sink.index == stream.sink
-            && Channel::ALL
-                .iter()
-                .any(|channel| channel.sink() == sink.name)
-    })
+    sinks
+        .iter()
+        .any(|sink| sink.index == stream.sink && Channel::owns_sink(&sink.name))
 }
 
 fn cleanup(fallback: &str, include: impl Fn(u32) -> bool) -> Result<(), String> {

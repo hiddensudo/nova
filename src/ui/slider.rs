@@ -31,11 +31,14 @@ impl Engine {
 
         let level = Sidetone::ALL[usize::from(value)];
         if response.dragged() {
+            self.drag_owner = Some(response.id);
             self.slider_selection = Some(SliderSelection::Dragging(level));
         } else if response.changed() || response.drag_stopped() {
+            self.drag_owner = None;
             self.slider_selection =
                 (self.level != Some(level)).then_some(SliderSelection::Queued(level));
-        } else if matches!(self.slider_selection, Some(SliderSelection::Dragging(_))) {
+        } else if self.drag_owner == Some(response.id) {
+            self.drag_owner = None;
             self.slider_selection = None;
         }
 

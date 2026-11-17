@@ -1,9 +1,17 @@
+mod channel_dialog;
 mod chatmix;
+mod desktop;
 mod engine;
 mod eq;
+mod eq_curve;
 mod eq_editor;
+mod icons;
 mod layout;
 mod mixer;
+mod mixer_channels;
+mod notifications;
+mod overview;
+mod preferences;
 mod settings;
 mod slider;
 mod theme;
@@ -16,8 +24,8 @@ pub fn run() -> eframe::Result {
     let options = eframe::NativeOptions {
         viewport: ViewportBuilder::default()
             .with_app_id("nova-control")
-            .with_inner_size([780.0, 462.0])
-            .with_min_inner_size([640.0, 400.0]),
+            .with_inner_size([960.0, 584.0])
+            .with_min_inner_size([620.0, 420.0]),
         renderer: eframe::Renderer::Glow,
         ..Default::default()
     };
@@ -26,7 +34,7 @@ pub fn run() -> eframe::Result {
         options,
         Box::new(|cc| {
             theme::configure(&cc.egui_ctx);
-            Ok(Box::new(Engine::default()))
+            Ok(Box::new(Engine::new(&cc.egui_ctx)))
         }),
     )
 }

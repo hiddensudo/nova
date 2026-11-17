@@ -4,18 +4,47 @@ use eframe::egui::{self, Context, Ui};
 
 use crate::device::eq::{self, Profile};
 
-use super::eq_editor::{EditAction, Editor};
+use super::{
+    eq_editor::{EditAction, Editor},
+    preferences::Preferences,
+    theme::{WARNING, card},
+};
 
 #[derive(Default)]
 pub(super) struct EqPage {
     active: Option<Profile>,
     request: Option<mpsc::Receiver<Result<Profile, String>>>,
+    action: Option<EditAction>,
     error: Option<String>,
     path: String,
+    search: String,
+    only_favorites: bool,
     editor: Option<Editor>,
 }
 
 impl EqPage {
+    #[cfg(test)]
+    pub fn fixture(profile: Profile) -> Self {
+        Self {
+            editor: Some(Editor::new(profile.clone(), profile.clone())),
+            active: Some(profile),
+            ..Self::default()
+        }
+    }
+
+    pub fn name(&self) -> Option<&str> {
+        self.active.as_ref().map(|profile| profile.name.as_str())
+    }
+
+    pub fn ensure_loaded(&mut self, ctx: &Context) -> bool {
+        if self.active.is_none() && self.error.is_none() && !self.busy() {
+            self.run(ctx, eq::current);
+            true
+        } else {
+            false
+        }
+    }
+
     fn run(
         &mut self,
         ctx: &Context,
@@ -31,90 +60,175 @@ impl EqPage {
         });
     }
 
-    pub(super) fn poll(&mut self) {
+    pub fn poll(&mut self) {
         let Some(request) = &self.request else { return };
         let result = match request.try_recv() {
             Ok(result) => result,
             Err(mpsc::TryRecvError::Empty) => return,
-            Err(mpsc::TryRecvError::Disconnected) => Err("Запит до EQ перервався.".into()),
+            Err(mpsc::TryRecvError::Disconnected) => Err("EQ request interrupted.".into()),
         };
         self.request = None;
+        let action = self.action.take();
         match result {
-            Ok(profile) => self.active = Some(profile),
+            Ok(profile) => {
+                if let (Some(action), Some(editor)) = (action, self.editor.as_mut()) {
+                    editor.compared(&action, &profile);
+                } else {
+                    let previous = self.active.clone().unwrap_or_else(|| profile.clone());
+                    self.editor = Some(Editor::new(previous, profile.clone()));
+                }
+                self.active = Some(profile);
+            }
             Err(error) => self.error = Some(error),
         }
     }
 
-    pub(super) fn show(&mut self, ui: &mut Ui, device_busy: bool) {
-        ui.heading("Апаратний EQ");
-        if self.active.is_none() && self.error.is_none() && self.request.is_none() && !device_busy {
-            self.run(ui.ctx(), eq::current);
-        }
-        if let Some(profile) = &self.active {
-            ui.label(format!("Поточний профіль · {}", profile.name));
+    pub fn show(&mut self, ui: &mut Ui, prefs: &mut Preferences, device_busy: bool) {
+        let lang = prefs.language;
+        if !device_busy {
+            self.ensure_loaded(ui.ctx());
         }
         if let Some(error) = &self.error {
-            ui.colored_label(super::theme::WARNING, error);
+            ui.colored_label(WARNING, error);
         }
-        if self.busy() || device_busy {
-            ui.spinner();
-        }
-
         let enabled = !self.busy() && !device_busy;
-        ui.add_enabled_ui(enabled, |ui| {
-            ui.horizontal_wrapped(|ui| {
-                for name in eq::PRESETS {
-                    if ui.button(name).clicked() {
-                        self.run(ui.ctx(), move || eq::apply(&Profile::preset(name)?));
-                    }
-                }
-                if ui.button("Зчитати профіль").clicked() {
-                    self.run(ui.ctx(), eq::current);
-                }
-            });
-            if ui
-                .add_enabled(
-                    self.active.is_some() && self.editor.is_none(),
-                    egui::Button::new("Редагувати EQ"),
-                )
-                .clicked()
-                && let Some(active) = self.active.clone()
-            {
-                self.editor = Some(Editor::new(active));
-            }
-            ui.add_space(12.0);
+        ui.horizontal_top(|ui| {
+            let width = ui.available_width();
+            let catalog_width = (width * 0.24).clamp(148.0, 201.0);
+            ui.allocate_ui_with_layout(
+                egui::vec2(width - catalog_width - ui.spacing().item_spacing.x, 0.0),
+                egui::Layout::top_down(egui::Align::Min),
+                |ui| {
+                    card(ui, |ui| {
+                        if let Some(editor) = &mut self.editor {
+                            if let Some(action) =
+                                editor.show(ui, self.active.as_ref(), lang, enabled)
+                            {
+                                self.edit(ui.ctx(), action);
+                            }
+                        } else if self.busy() || device_busy {
+                            ui.spinner();
+                        } else if ui
+                            .button(lang.text("Зчитати EQ гарнітури", "Read headset EQ"))
+                            .clicked()
+                        {
+                            self.run(ui.ctx(), eq::current);
+                        }
+                    });
+                },
+            );
+            ui.allocate_ui_with_layout(
+                egui::vec2(catalog_width, 0.0),
+                egui::Layout::top_down(egui::Align::Min),
+                |ui| {
+                    card(ui, |ui| self.catalog(ui, prefs, enabled));
+                },
+            );
+        });
+        if let Some(active) = &self.active {
+            ui.label(format!(
+                "{} · {}",
+                lang.text("На гарнітурі", "On headset"),
+                active.name
+            ));
+        }
+        egui::CollapsingHeader::new(lang.text("Імпорт профілю", "Import profile")).show(ui, |ui| {
             ui.horizontal_wrapped(|ui| {
                 ui.add(
-                    egui::TextEdit::singleline(&mut self.path).hint_text("Шлях до JSON-профілю"),
+                    egui::TextEdit::singleline(&mut self.path)
+                        .hint_text(lang.text("Шлях до JSON-профілю", "Path to JSON profile")),
                 );
                 if ui
                     .add_enabled(
-                        !self.path.trim().is_empty(),
-                        egui::Button::new("Імпортувати"),
+                        enabled && !self.path.trim().is_empty(),
+                        egui::Button::new(lang.text("Імпортувати", "Import")),
                     )
                     .clicked()
                 {
                     let path = PathBuf::from(self.path.trim());
                     self.run(ui.ctx(), move || eq::apply(&eq::from_file(&path)?));
                 }
+                if ui
+                    .add_enabled(
+                        enabled,
+                        egui::Button::new(lang.text("Зчитати профіль", "Read profile")),
+                    )
+                    .clicked()
+                {
+                    self.run(ui.ctx(), eq::current);
+                }
             });
         });
+    }
 
-        if let Some(editor) = &mut self.editor {
-            ui.separator();
-            let action = ui.add_enabled_ui(enabled, |ui| editor.show(ui)).inner;
-            match action {
-                Some(EditAction::Apply(profile)) => self.run(ui.ctx(), move || eq::apply(&profile)),
-                Some(EditAction::Save(profile)) => {
-                    self.run(ui.ctx(), move || eq::save(&eq::apply(&profile)?));
-                }
-                Some(EditAction::Close) => self.editor = None,
-                None => {}
+    fn catalog(&mut self, ui: &mut Ui, prefs: &mut Preferences, enabled: bool) {
+        let lang = prefs.language;
+        ui.strong(lang.text("Пресети", "Presets"));
+        ui.add(
+            egui::TextEdit::singleline(&mut self.search)
+                .hint_text(lang.text("Пошук пресетів", "Search presets")),
+        );
+        ui.checkbox(&mut self.only_favorites, lang.text("Обране", "Favorites"));
+        let needle = self.search.trim().to_ascii_lowercase();
+        let mut visible = false;
+        for preset in eq::PRESETS {
+            let favorite = prefs.favorites.contains(preset);
+            if !preset.to_ascii_lowercase().contains(&needle) || (self.only_favorites && !favorite)
+            {
+                continue;
             }
+            visible = true;
+            ui.horizontal(|ui| {
+                let selected = self.name() == Some(preset);
+                if ui
+                    .add_enabled(enabled, egui::Button::new(preset).selected(selected))
+                    .clicked()
+                {
+                    self.run(ui.ctx(), move || eq::apply(&Profile::preset(preset)?));
+                }
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui
+                        .small_button(if favorite { "★" } else { "☆" })
+                        .on_hover_text(lang.text("Обране", "Favorites"))
+                        .clicked()
+                    {
+                        if favorite {
+                            prefs.favorites.remove(preset);
+                        } else {
+                            prefs.favorites.insert(preset.into());
+                        }
+                        if let Err(error) = prefs.save() {
+                            self.error = Some(error);
+                        }
+                    }
+                });
+            });
+        }
+        if !visible {
+            ui.label(lang.text("Нічого не знайдено", "No matches"));
         }
     }
 
-    pub(super) fn busy(&self) -> bool {
+    fn edit(&mut self, ctx: &Context, action: EditAction) {
+        let profile = match &action {
+            EditAction::CompareA(profile)
+            | EditAction::CompareB(profile)
+            | EditAction::Restore(profile)
+            | EditAction::Save(profile) => profile.clone(),
+        };
+        let save = matches!(action, EditAction::Save(_));
+        self.action = Some(action);
+        self.run(ctx, move || {
+            let applied = eq::apply(&profile)?;
+            if save {
+                eq::save(&applied)
+            } else {
+                Ok(applied)
+            }
+        });
+    }
+
+    pub fn busy(&self) -> bool {
         self.request.is_some()
     }
 }

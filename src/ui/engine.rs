@@ -4,11 +4,11 @@ use std::{
     time::{Duration, Instant},
 };
 
-use eframe::egui::{Context, Ui};
+use eframe::egui::{Context, Id, Ui};
 
 use crate::device::{self, Operation, Sidetone};
 
-use super::{eq::EqPage, mixer::MixerPage, settings::SettingsPage};
+use super::{eq::EqPage, mixer::MixerPage, preferences::Preferences, settings::SettingsPage};
 
 const READ_INTERVAL: Duration = Duration::from_secs(3);
 
@@ -18,6 +18,9 @@ pub(super) struct Engine {
     pub(super) eq: EqPage,
     pub(super) mixer: MixerPage,
     pub(super) settings: SettingsPage,
+    pub(super) prefs: Preferences,
+    pub(super) desktop: Option<super::desktop::Desktop>,
+    pub(super) drag_owner: Option<Id>,
     pub(super) level: Option<Sidetone>,
     pub(super) slider_selection: Option<SliderSelection>,
     pub(super) error: Option<String>,
@@ -29,6 +32,7 @@ pub(super) struct Engine {
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub(super) enum Page {
     #[default]
+    Overview,
     Microphone,
     Eq,
     Mixer,
@@ -47,10 +51,21 @@ struct Request {
 }
 
 impl Engine {
-    pub(super) fn submit(&mut self, ctx: &Context, operation: Operation) {
-        if matches!(operation, Operation::Set(_) | Operation::Save) {
-            self.saved_level = None;
+    pub fn new(ctx: &Context) -> Self {
+        let prefs = Preferences::load();
+        let mut desktop = super::desktop::Desktop::new(ctx, prefs.language);
+        if prefs.global_shortcut {
+            desktop.enable_shortcut(prefs.language);
         }
+        Self {
+            prefs,
+            desktop: Some(desktop),
+            mixer: MixerPage::new(),
+            ..Self::default()
+        }
+    }
+
+    pub(super) fn submit(&mut self, ctx: &Context, operation: Operation) {
         let (send, receive) = mpsc::channel();
         self.request = Some(Request {
             operation,
@@ -88,7 +103,10 @@ impl Engine {
     }
 
     pub(super) fn can_save(&self) -> bool {
-        self.level.is_some() && self.request.is_none() && self.slider_selection.is_none()
+        self.level.is_some()
+            && self.level != self.saved_level
+            && self.request.is_none()
+            && self.slider_selection.is_none()
     }
 
     pub(super) fn saving(&self) -> bool {
@@ -108,10 +126,52 @@ impl Engine {
 }
 
 impl eframe::App for Engine {
-    fn logic(&mut self, _ctx: &Context, _frame: &mut eframe::Frame) {
+    fn logic(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         self.eq.poll();
         self.mixer.poll();
-        self.settings.poll();
+        self.settings.poll(&self.prefs);
+        self.poll_sidetone();
+        if let Some(desktop) = &mut self.desktop {
+            let actions = desktop.poll(
+                ctx,
+                self.prefs.keep_in_tray,
+                self.prefs.language,
+                self.level,
+            );
+            let hidden = desktop.hidden;
+            if !self.prefs.global_shortcut
+                && desktop.shortcut_result.as_ref().is_some_and(Result::is_ok)
+            {
+                self.prefs.global_shortcut = true;
+                let _ = self.prefs.save();
+            }
+            for action in actions {
+                let level = match action {
+                    super::desktop::Action::Sidetone(level) => Some(level),
+                    super::desktop::Action::Cycle => self
+                        .level
+                        .map(|current| Sidetone::ALL[(current as usize + 1) % Sidetone::ALL.len()]),
+                    _ => None,
+                };
+                if let Some(level) = level {
+                    self.slider_selection = Some(SliderSelection::Queued(level));
+                    self.drag_owner = None;
+                }
+            }
+            if hidden {
+                self.schedule(ctx);
+            }
+        }
+    }
+
+    fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
+        self.draw(ui);
+        self.schedule(ui.ctx());
+    }
+}
+
+impl Engine {
+    fn poll_sidetone(&mut self) {
         let Some(request) = &self.request else {
             return;
         };
@@ -122,15 +182,17 @@ impl eframe::App for Engine {
                 Err("Запит до донгла перервався. Рівень буде зчитано повторно.".into())
             }
         };
-        let saving = self.saving();
+        let operation = request.operation;
         self.request = None;
         self.next_read = Some(Instant::now() + READ_INTERVAL);
         match result {
             Ok(level) => {
-                if saving {
+                if matches!(operation, Operation::Save)
+                    || matches!(operation, Operation::Read)
+                        && (self.saved_level.is_none()
+                            || self.level.is_some_and(|prior| prior != level))
+                {
                     self.saved_level = Some(level);
-                } else if self.saved_level != Some(level) {
-                    self.saved_level = None;
                 }
                 self.level = Some(level);
                 self.error = None;
@@ -142,20 +204,25 @@ impl eframe::App for Engine {
         }
     }
 
-    fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
-        self.draw(ui);
-        if self.page != Page::Microphone || self.eq.busy() || self.settings.busy() {
+    fn schedule(&mut self, ctx: &Context) {
+        if self.eq.busy() || self.settings.busy() {
             return;
         }
         let now = Instant::now();
         if let Some(operation) = self.next_operation(now) {
-            self.submit(ui.ctx(), operation);
-        } else if self.request.is_none()
-            && self.slider_selection.is_none()
-            && let Some(deadline) = self.next_read
-        {
-            ui.ctx()
-                .request_repaint_after(deadline.saturating_duration_since(now));
+            self.submit(ctx, operation);
+        } else if self.request.is_none() && self.slider_selection.is_none() {
+            if self.page == Page::Overview
+                && self.settings.data().is_some_and(|state| state.connected)
+            {
+                self.eq.ensure_loaded(ctx);
+            }
+            if !self.eq.busy() {
+                self.settings.refresh(ctx);
+            }
+            if let Some(deadline) = self.next_read {
+                ctx.request_repaint_after(deadline.saturating_duration_since(now));
+            }
         }
     }
 }

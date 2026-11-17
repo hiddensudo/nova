@@ -11,10 +11,19 @@ use eframe::egui::{self, Context, Ui};
 
 use crate::mixer::{self, Channel, Config, Snapshot};
 
+use super::{
+    channel_dialog::{ChannelDialog, Interaction},
+    mixer_channels::{self, Action, color},
+    preferences::Language,
+    theme::{MUTED, WARNING, card},
+};
+
 #[derive(Default)]
 pub(super) struct MixerPage {
     worker: Option<Worker>,
     state: Option<Snapshot>,
+    config: Config,
+    dialog: Option<ChannelDialog>,
     error: Option<String>,
 }
 
@@ -59,11 +68,52 @@ impl Drop for Worker {
 }
 
 impl MixerPage {
+    pub fn new() -> Self {
+        match Config::load() {
+            Ok(config) => Self {
+                config,
+                ..Self::default()
+            },
+            Err(error) => Self {
+                error: Some(error),
+                ..Self::default()
+            },
+        }
+    }
+
+    pub fn summary(&self, ui: &mut Ui, lang: Language) {
+        for channel in self.config.channels().into_iter().take(3) {
+            let percent = self.config.level(channel);
+            let tint = color(self.config.color(channel));
+            ui.horizontal(|ui| {
+                super::icons::label(
+                    ui,
+                    super::icons::Icon::Channel(self.config.icon(channel)),
+                    tint,
+                );
+                ui.add_sized(
+                    [65.0, 19.0],
+                    egui::Label::new(self.config.name(channel)).truncate(),
+                );
+                ui.add(
+                    egui::ProgressBar::new(f32::from(percent) / 100.0)
+                        .desired_width(ui.available_width())
+                        .fill(tint)
+                        .show_percentage(),
+                );
+            });
+        }
+        if self.worker.is_none() {
+            ui.label(egui::RichText::new(lang.text("Мікшер вимкнено", "Mixer off")).color(MUTED));
+        }
+    }
+
     pub(super) fn poll(&mut self) {
         let Some(worker) = &self.worker else { return };
         while let Ok(result) = worker.rx.try_recv() {
             match result {
                 Ok(state) => {
+                    self.config = state.config.clone();
                     self.state = Some(state);
                     self.error = None;
                 }
@@ -78,74 +128,134 @@ impl MixerPage {
         }
     }
 
-    pub(super) fn show(&mut self, ui: &mut Ui) {
-        ui.heading("Мікшер");
-        if self.worker.is_none() {
-            if ui.button("Увімкнути Game / Media / Chat").clicked() {
+    pub fn show(&mut self, ui: &mut Ui, lang: Language) {
+        ui.horizontal_wrapped(|ui| {
+            if self.worker.is_none() {
+                if ui
+                    .button(lang.text("Увімкнути мікшер", "Enable mixer"))
+                    .clicked()
+                {
+                    self.error = None;
+                    self.worker = Some(Worker::start(ui.ctx()));
+                }
+            } else if ui
+                .button(lang.text("Вимкнути мікшер", "Disable mixer"))
+                .clicked()
+            {
+                self.worker = None;
+                self.state = None;
                 self.error = None;
-                self.worker = Some(Worker::start(ui.ctx()));
             }
-        } else if ui.button("Вимкнути мікшер").clicked() {
-            self.worker = None;
-            self.state = None;
-            self.error = None;
-        }
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui
+                    .button(lang.text("+  Додати канал", "+  Add channel"))
+                    .clicked()
+                {
+                    self.dialog = Some(ChannelDialog::new(None, &self.config));
+                }
+            });
+        });
         if let Some(error) = &self.error {
-            ui.colored_label(super::theme::WARNING, error);
-        }
-        if let Some(state) = &mut self.state {
-            if let Err(error) = controls(ui, state) {
-                self.error = Some(error);
-            }
-        } else if self.worker.is_some() && self.error.is_none() {
+            ui.colored_label(WARNING, error);
+        } else if self.state.is_none() && self.worker.is_some() {
             ui.spinner();
         }
+        let dial = self.state.as_ref().and_then(|state| state.dial);
+        let pair = card(ui, |ui| {
+            super::chatmix::controls(ui, &self.config, dial, lang)
+        })
+        .inner;
+        if let Some(pair) = pair {
+            self.update(|config| {
+                config.pair = pair;
+                Ok(())
+            });
+        }
+        ui.add_space(5.0);
+        let active = self
+            .state
+            .as_ref()
+            .map_or([].as_slice(), |state| state.streams.as_slice());
+        if let Some(action) = mixer_channels::split(ui, &self.config, active, lang) {
+            self.apply(action);
+        }
+        self.channel_dialog(ui, lang);
     }
-}
 
-fn controls(ui: &mut Ui, state: &mut Snapshot) -> Result<(), String> {
-    ui.add_space(12.0);
-    for channel in Channel::ALL {
-        let level = &mut state.config.levels[channel as usize];
-        let response = ui.add(
-            egui::Slider::new(level, 0..=100)
-                .suffix("%")
-                .text(channel.name()),
-        );
-        if response.changed() {
-            Config::edit(|config| config.levels[channel as usize] = *level)?;
+    fn channel_dialog(&mut self, ui: &mut Ui, lang: Language) {
+        let Some(mut dialog) = self.dialog.take() else {
+            return;
+        };
+        let Some(action) = dialog.show(ui, &self.config, lang) else {
+            self.dialog = Some(dialog);
+            return;
+        };
+        if !matches!(action, Interaction::Cancel) {
+            match Config::change(|config| {
+                dialog.apply(config, matches!(action, Interaction::Delete))?;
+                Ok(config.clone())
+            }) {
+                Ok(config) => self.config = config,
+                Err(error) => {
+                    dialog.error = Some(error);
+                    self.dialog = Some(dialog);
+                }
+            }
         }
     }
-    ui.separator();
-    super::chatmix::controls(ui, state)?;
-    ui.separator();
-    ui.heading("Застосунки");
-    if state.streams.is_empty() {
-        ui.label("Запусти відтворення звуку в застосунку, щоб призначити йому канал.");
-    }
-    for stream in &mut state.streams {
-        let previous = stream.channel;
-        ui.horizontal_wrapped(|ui| {
-            egui::ComboBox::from_id_salt(&stream.key)
-                .selected_text(stream.channel.map(Channel::name).unwrap_or("Авто"))
-                .show_ui(ui, |ui| {
-                    ui.selectable_value(&mut stream.channel, None, "Авто");
-                    for channel in Channel::ALL {
-                        ui.selectable_value(&mut stream.channel, Some(channel), channel.name());
-                    }
+
+    fn apply(&mut self, action: Action) {
+        match action {
+            Action::Level(channel, level) => {
+                self.update(|config| config.set_level(channel, level));
+            }
+            Action::Mute(channel, muted) => {
+                self.update(|config| {
+                    config.set_mute(channel, muted);
+                    Ok(())
                 });
-            ui.label(&stream.label);
-        });
-        if stream.channel != previous {
-            Config::edit(|config| match stream.channel {
-                Some(channel) => {
-                    config.routes.insert(stream.key.clone(), channel);
+            }
+            Action::Color(channel, color) => {
+                self.update(|config| config.set_color(channel, color));
+            }
+            Action::Edit(channel @ Channel::Custom(_)) => {
+                self.dialog = Some(ChannelDialog::new(Some(channel), &self.config))
+            }
+            Action::Edit(_) => {}
+            Action::Route(key, value) => {
+                let changed = self.update(|config| {
+                    if let Some(channel) = value {
+                        config.routes.insert(key.clone(), channel);
+                    } else {
+                        config.routes.remove(&key);
+                    }
+                    Ok(())
+                });
+                if changed
+                    && let Some(stream) = self
+                        .state
+                        .as_mut()
+                        .and_then(|state| state.streams.iter_mut().find(|app| app.key == key))
+                {
+                    stream.channel = value;
                 }
-                None => {
-                    config.routes.remove(&stream.key);
-                }
-            })?;
+            }
         }
     }
-    Ok(())
+
+    fn update(&mut self, edit: impl FnOnce(&mut Config) -> Result<(), String>) -> bool {
+        match Config::change(|config| {
+            edit(config)?;
+            Ok(config.clone())
+        }) {
+            Ok(config) => {
+                self.config = config;
+                true
+            }
+            Err(error) => {
+                self.error = Some(error);
+                false
+            }
+        }
+    }
 }

@@ -21,6 +21,7 @@ fn four_slider_levels_fit_without_a_refresh_button() {
     let ctx = Context::default();
     configure(&ctx);
     let mut app = Engine {
+        page: Page::Microphone,
         level: Some(Sidetone::Medium),
         ..Default::default()
     };
@@ -42,9 +43,7 @@ fn four_slider_levels_fit_without_a_refresh_button() {
         );
     }
     assert!(!labels.iter().any(|label| label == "Оновити"));
-    for tab in ["Мікрофон", "EQ", "Мікшер", "Пристрій"] {
-        assert!(labels.iter().any(|label| label == tab), "{labels:?}");
-    }
+    assert!(labels.iter().any(|label| label == "Мікрофон"), "{labels:?}");
 }
 
 #[test]
@@ -127,4 +126,51 @@ fn frame_for_drag(ctx: &Context, app: &mut Engine, events: Vec<Event>) -> Rect {
     });
     output.textures_delta.clear();
     rect
+}
+
+#[test]
+fn all_panels_show_primary_controls_at_the_minimum_window_size() {
+    let ctx = Context::default();
+    configure(&ctx);
+    let eq = crate::device::eq::Profile::preset("Focus").unwrap();
+    let mut app = Engine {
+        level: Some(Sidetone::Medium),
+        saved_level: Some(Sidetone::Medium),
+        eq: EqPage::fixture(eq),
+        ..Default::default()
+    };
+    assert_eq!(app.page.name(app.prefs.language), "Огляд");
+
+    for (page, wanted) in [
+        (Page::Overview, ["Arctis Nova 7 Gen 2", "Швидкі дії"]),
+        (Page::Microphone, ["Sidetone", "Підсилення мікрофона"]),
+        (Page::Eq, ["Focus", "Пресети"]),
+        (Page::Mixer, ["Мікшер", "+  Додати канал"]),
+        (Page::Settings, ["Системні сповіщення", "Гарнітура"]),
+    ] {
+        app.page = page;
+        let minimum = || egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(620.0, 420.0))),
+            ..Default::default()
+        };
+        ctx.run_ui(minimum(), |ui| app.draw(ui))
+            .textures_delta
+            .clear();
+        let mut output = ctx.run_ui(minimum(), |ui| app.draw(ui));
+        output.textures_delta.clear();
+        let labels: Vec<_> = output
+            .shapes
+            .iter()
+            .flat_map(|shape| visible_text(&shape.shape, shape.clip_rect))
+            .collect();
+        for expected in wanted {
+            assert!(
+                labels.iter().any(|label| label == expected),
+                "missing {expected}: {labels:?}"
+            );
+        }
+        if page == Page::Microphone {
+            assert!(!labels.iter().any(|label| label == "Зберегти в гарнітурі"));
+        }
+    }
 }

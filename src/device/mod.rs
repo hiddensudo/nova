@@ -36,6 +36,11 @@ pub fn detect() -> Result<String, String> {
     ))
 }
 
+#[cfg(feature = "gui")]
+pub fn dongle_present() -> bool {
+    UsbPort::find().is_ok()
+}
+
 pub fn sidetone(operation: Operation) -> Result<Sidetone, String> {
     with_device(|port| transact(port, operation, READ_TIMEOUT))
 }

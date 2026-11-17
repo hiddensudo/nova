@@ -33,13 +33,8 @@ pub enum ChargeState {
 
 #[cfg(feature = "gui")]
 impl ChargeState {
-    pub fn label(self) -> &'static str {
-        match self {
-            Self::Unknown => "Стан заряджання невідомий",
-            Self::Charging => "Заряджається",
-            Self::Plugged => "Кабель під’єднано",
-            Self::Discharging => "Від батареї",
-        }
+    pub fn is_charging(self) -> bool {
+        matches!(self, Self::Charging | Self::Plugged)
     }
 }
 

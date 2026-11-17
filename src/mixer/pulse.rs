@@ -38,10 +38,18 @@ pub(super) struct Stream {
     pub index: u32,
     pub sink: u32,
     #[serde(default)]
+    corked: bool,
+    #[serde(default)]
+    mute: bool,
+    #[serde(default)]
     pub properties: BTreeMap<String, String>,
 }
 
 impl Stream {
+    pub fn playing(&self) -> bool {
+        !self.corked && !self.mute
+    }
+
     pub fn app_key(&self) -> Option<&str> {
         if self
             .properties
@@ -84,16 +92,16 @@ impl Module {
     pub fn owned(&self) -> bool {
         let args = &self.argument;
         match self.name.as_str() {
-            "module-null-sink" => Channel::ALL.iter().any(|channel| {
-                args.split_whitespace()
-                    .any(|arg| arg.strip_prefix("sink_name=") == Some(channel.sink()))
-            }),
+            "module-null-sink" => args
+                .split_whitespace()
+                .filter_map(|field| field.strip_prefix("sink_name="))
+                .any(Channel::owns_sink),
             "module-loopback" => {
                 args.contains(LOOPBACK_ID)
-                    && Channel::ALL.iter().any(|channel| {
-                        args.split_whitespace()
-                            .any(|arg| arg == format!("source={}.monitor", channel.sink()))
-                    })
+                    && args
+                        .split_whitespace()
+                        .filter_map(|field| field.strip_prefix("source=")?.strip_suffix(".monitor"))
+                        .any(Channel::owns_sink)
             }
             _ => false,
         }
@@ -172,6 +180,8 @@ mod tests {
         let mut stream = Stream {
             index: 12,
             sink: 2,
+            corked: false,
+            mute: false,
             properties: [
                 ("application.name".into(), "Browser".into()),
                 ("application.process.binary".into(), "firefox".into()),

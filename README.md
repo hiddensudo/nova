@@ -2,7 +2,7 @@
 
 [Українська](README.uk.md)
 
-A native Rust application for SteelSeries Arctis Nova 7 Wireless Gen 2 (USB dongle `1038:227e`). The Engine panel controls the hardware Mic Sidetone levels Off, Low, Medium and High. It reads the current value automatically. The slider previews the new level. Use **Зберегти в гарнітурі** (Save to headset) or `nova-control sidetone save` to commit the current device settings.
+A native Rust application for SteelSeries Arctis Nova 7 Wireless Gen 2 (USB dongle `1038:227e`). The Overview shows connection, battery, active EQ, and quick actions. The microphone panel and header shortcut control the hardware Sidetone levels Off, Low, Medium and High. Nova Control reads the current value automatically and applies slider changes on release. Use **Зберегти в гарнітурі** (Save to headset) or `nova-control sidetone save` to commit the current device settings.
 
 ## Install or update
 
@@ -53,12 +53,20 @@ For a Debian 12 build targeting glibc 2.36, use `docker build --target artifacts
 
 The **EQ** page reads the active curve and offers four local presets. Use `nova-control eq list|get|select|export|import` from the terminal. The importer accepts Nova Control JSON and the peaking-filter subset of Sonar parametric EQ JSON. The headset applies the curve directly and Nova Control verifies it by reading it back. [Firmware EQ format](https://github.com/loteran/Arctis-Sound-Manager/issues/146)
 
-The EQ editor changes frequency, gain and Q for each peaking filter. Preview applies the draft for the current session. Restore reapplies the curve captured when the editor opened. Use the save button or `nova-control eq save` to store the current device settings.
+Drag filters on the EQ graph or enter precise frequency, gain and Q values. A/B applies the previous or current curve to the headset for comparison. Search the local presets by name or filter by favorites. Use the save button or `nova-control eq save` to store the current device settings.
 
 ## PipeWire mixer
 
-Enable the mixer in Nova Control to create Game, Media and Chat sinks. Play audio in an application to select its channel. Channel levels and app assignments are stored in the user's XDG configuration and reapplied on the next mixer start. Keep the window open or use `nova-control mixer run` in a terminal. Requires PipeWire's Pulse server and `pactl`.
+Enable the mixer to create Game, Media, Chat, and any custom sinks you configure. Assign active applications with the channel menu or by dragging them to a channel. Levels, mute state, order, colors and routes are stored in the XDG configuration. Run the app in the window or system tray, or use `nova-control mixer run` in a terminal. Requires PipeWire's Pulse server and `pactl`.
 
-Enable **Фізичне коліщатко ChatMix** (physical ChatMix dial) to balance any two channels, including Game and Media. The third channel keeps its own level. CLI commands include `nova-control mixer chatmix Game Media`, `nova-control mixer chatmix off` and `nova-control mixer dial`.
+Enable **Фізичне коліщатко ChatMix** (physical ChatMix dial) to balance any two channels, including Game and Media. Other channels keep their own levels. CLI commands include `nova-control mixer chatmix Game Media`, `nova-control mixer chatmix off` and `nova-control mixer dial`.
 
-The **Пристрій** (Device) page displays battery and charging status and controls mic gain, inactivity timeout and mute LED brightness. These are also available under `nova-control settings`.
+The microphone panel controls mic gain. The Device panel controls the inactivity timeout and mute LED brightness. These are also available under `nova-control settings`.
+
+## Desktop integration
+
+Nova Control uses the StatusNotifierItem system tray where available. The tray menu can switch between the four Sidetone levels and reopen the last visible panel. The Device panel lets you choose Ukrainian or English and toggle desktop notification types independently. Notifications require the Linux notify-send command.
+
+Use **Assign global shortcut** in Device settings to register a Sidetone cycle shortcut. This requires a desktop backend for the XDG Global Shortcuts portal. The desktop may ask for approval or let you choose a key combination.
+
+The mixer CLI also supports **channel list**, **channel add NAME**, **channel rename NAME NEW**, and **channel remove NAME**. Existing Game, Media and Chat routes carry forward when updating from 0.2.0.

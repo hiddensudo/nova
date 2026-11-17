@@ -28,6 +28,7 @@ pub(super) struct Engine {
     pub(super) saved_level: Option<Sidetone>,
     request: Option<Request>,
     next_read: Option<Instant>,
+    pub(super) instance: Option<super::instance::Instance>,
 }
 
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
@@ -132,12 +133,14 @@ impl eframe::App for Engine {
         self.settings.poll(&self.prefs);
         self.poll_sidetone();
         if let Some(desktop) = &mut self.desktop {
-            let actions = desktop.poll(
-                ctx,
-                self.prefs.keep_in_tray,
-                self.prefs.language,
-                self.level,
-            );
+            if self
+                .instance
+                .as_ref()
+                .is_some_and(|instance| instance.activated())
+            {
+                desktop.show(ctx);
+            }
+            let actions = desktop.poll(ctx, self.prefs.language, self.level);
             let hidden = desktop.hidden;
             if !self.prefs.global_shortcut
                 && desktop.shortcut_result.as_ref().is_some_and(Result::is_ok)

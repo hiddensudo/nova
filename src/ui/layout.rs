@@ -70,6 +70,19 @@ impl Engine {
                 ui.horizontal_centered(|ui| {
                     ui.strong("Nova Control");
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if let Some(desktop) = self.desktop.as_mut()
+                            && desktop.has_tray()
+                            && icons::button(
+                                ui,
+                                Icon::Tray,
+                                lang.text("Згорнути в трей", "Minimize to tray"),
+                                false,
+                                false,
+                            )
+                            .clicked()
+                        {
+                            desktop.minimize(ui.ctx());
+                        }
                         let quick = icons::button(
                             ui,
                             Icon::Mic,

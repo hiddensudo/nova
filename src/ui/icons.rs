@@ -14,6 +14,7 @@ pub(super) enum Icon {
     Eq,
     Mixer,
     Headset,
+    Tray,
     Speaker(bool),
     Channel(ChannelIcon),
 }
@@ -129,6 +130,14 @@ fn paint(painter: &Painter, center: Pos2, icon: Icon, color: Color32) {
                 line(knob + 2.0, y, 7.0, y);
                 line(knob, y - 2.0, knob, y + 2.0);
             }
+        }
+        Icon::Tray => {
+            line(-7., 4., -7., 7.);
+            line(-7., 7., 7., 7.);
+            line(7., 7., 7., 4.);
+            line(0., -7., 0., 3.);
+            line(-3., 0., 0., 3.);
+            line(0., 3., 3., 0.);
         }
         Icon::Headset => {
             painter.add(eframe::egui::Shape::line(

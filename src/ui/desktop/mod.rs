@@ -69,6 +69,20 @@ impl Desktop {
         }
     }
 
+    pub fn show(&mut self, ctx: &Context) {
+        self.hidden = false;
+        ctx.send_viewport_cmd(ViewportCommand::Visible(true));
+        ctx.send_viewport_cmd(ViewportCommand::Minimized(false));
+        ctx.send_viewport_cmd(ViewportCommand::Focus);
+    }
+
+    pub fn minimize(&mut self, ctx: &Context) {
+        if self.has_tray() {
+            self.hidden = true;
+            ctx.send_viewport_cmd(ViewportCommand::Visible(false));
+        }
+    }
+
     pub fn has_tray(&self) -> bool {
         self.tray.as_ref().is_some_and(|handle| !handle.is_closed())
     }
@@ -94,20 +108,12 @@ impl Desktop {
         self.shortcut_result = None;
     }
 
-    pub fn poll(
-        &mut self,
-        ctx: &Context,
-        keep_in_tray: bool,
-        lang: Language,
-        level: Option<Sidetone>,
-    ) -> Vec<Action> {
+    pub fn poll(&mut self, ctx: &Context, lang: Language, level: Option<Sidetone>) -> Vec<Action> {
         let mut actions = Vec::new();
         while let Ok(event) = self.rx.try_recv() {
             match event {
                 Event::Action(Action::Show) => {
-                    self.hidden = false;
-                    ctx.send_viewport_cmd(ViewportCommand::Visible(true));
-                    ctx.send_viewport_cmd(ViewportCommand::Focus);
+                    self.show(ctx);
                 }
                 Event::Action(Action::Quit) => {
                     self.exiting = true;
@@ -133,15 +139,6 @@ impl Desktop {
                 tray.level = level;
             });
             self.tray_display = Some((lang, level));
-        }
-        if !self.exiting
-            && keep_in_tray
-            && self.has_tray()
-            && ctx.input(|input| input.viewport().close_requested())
-        {
-            self.hidden = true;
-            ctx.send_viewport_cmd(ViewportCommand::CancelClose);
-            ctx.send_viewport_cmd(ViewportCommand::Visible(false));
         }
         if self.hidden && !self.has_tray() && !self.exiting {
             self.hidden = false;

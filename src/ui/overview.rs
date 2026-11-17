@@ -32,7 +32,22 @@ impl Engine {
         });
         ui.add_space(10.0);
         ui.columns(2, |columns| {
+            let channels = card(&mut columns[1], |ui| {
+                ui.strong(lang.text("Канали", "Channels"));
+                ui.add_space(6.0);
+                self.mixer.summary(ui, lang);
+                ui.add_space(5.0);
+                if ui
+                    .button(lang.text("Керувати каналами", "Manage channels"))
+                    .clicked()
+                {
+                    self.navigate(Page::Mixer);
+                }
+                ui.min_rect().height()
+            });
+            let height = channels.inner;
             card(&mut columns[0], |ui| {
+                ui.set_min_height(height);
                 ui.strong(lang.text("Аудіо", "Audio"));
                 ui.add_space(4.0);
                 let preset = self.eq.name().unwrap_or("—").to_owned();
@@ -55,18 +70,6 @@ impl Engine {
                     {
                         self.navigate(page);
                     }
-                }
-            });
-            card(&mut columns[1], |ui| {
-                ui.strong(lang.text("Канали", "Channels"));
-                ui.add_space(6.0);
-                self.mixer.summary(ui, lang);
-                ui.add_space(5.0);
-                if ui
-                    .button(lang.text("Керувати каналами", "Manage channels"))
-                    .clicked()
-                {
-                    self.navigate(Page::Mixer);
                 }
             });
         });

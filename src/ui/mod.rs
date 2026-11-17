@@ -8,6 +8,7 @@ mod eq;
 mod eq_curve;
 mod eq_editor;
 mod icons;
+mod instance;
 mod layout;
 mod mixer;
 mod mixer_channels;
@@ -24,6 +25,11 @@ use eframe::egui::ViewportBuilder;
 use engine::Engine;
 
 pub fn run() -> eframe::Result {
+    let Some(mut instance) = instance::Instance::acquire()
+        .map_err(|error| eframe::Error::AppCreation(Box::new(error)))?
+    else {
+        return Ok(());
+    };
     let options = eframe::NativeOptions {
         viewport: ViewportBuilder::default()
             .with_app_id("nova-control")
@@ -35,9 +41,12 @@ pub fn run() -> eframe::Result {
     eframe::run_native(
         "Nova Control",
         options,
-        Box::new(|cc| {
+        Box::new(move |cc| {
             theme::configure(&cc.egui_ctx);
-            Ok(Box::new(Engine::new(&cc.egui_ctx)))
+            instance.listen(&cc.egui_ctx)?;
+            let mut engine = Engine::new(&cc.egui_ctx);
+            engine.instance = Some(instance);
+            Ok(Box::new(engine))
         }),
     )
 }

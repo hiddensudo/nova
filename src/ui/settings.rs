@@ -264,16 +264,6 @@ impl SettingsPage {
         });
         let mut changed = prefs.language != before;
         if let Some(desktop) = desktop {
-            changed |= ui
-                .add_enabled_ui(desktop.has_tray(), |ui| {
-                    super::controls::toggle(
-                        ui,
-                        &mut prefs.keep_in_tray,
-                        before.text("Згортати в системний трей", "Keep in the system tray"),
-                    )
-                })
-                .inner
-                .changed();
             if desktop.has_shortcut() {
                 if ui
                     .button(before.text("Вимкнути глобальну клавішу", "Disable global shortcut"))

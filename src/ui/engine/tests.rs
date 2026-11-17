@@ -171,3 +171,38 @@ fn all_panels_show_primary_controls_at_the_minimum_window_size() {
         }
     }
 }
+
+#[test]
+fn overview_audio_and_channels_cards_have_equal_height() {
+    let ctx = Context::default();
+    configure(&ctx);
+    let mut app = Engine::default();
+    let input = || egui::RawInput {
+        screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, vec2(1000.0, 650.0))),
+        ..Default::default()
+    };
+    ctx.run_ui(input(), |ui| app.draw(ui))
+        .textures_delta
+        .clear();
+    let mut output = ctx.run_ui(input(), |ui| app.draw(ui));
+    output.textures_delta.clear();
+    let cards: Vec<_> = output
+        .shapes
+        .iter()
+        .filter_map(|clipped| {
+            if let Shape::Rect(shape) = &clipped.shape
+                && shape.fill == crate::ui::theme::CARD
+                && (300.0..600.0).contains(&shape.rect.width())
+            {
+                Some(shape.rect)
+            } else {
+                None
+            }
+        })
+        .collect();
+    assert_eq!(cards.len(), 2, "{cards:?}");
+    assert!(
+        (cards[0].height() - cards[1].height()).abs() <= 1.0,
+        "{cards:?}"
+    );
+}

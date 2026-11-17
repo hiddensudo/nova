@@ -25,7 +25,6 @@ pub(super) struct Preferences {
     pub low_battery: bool,
     pub disconnected: bool,
     pub errors: bool,
-    pub keep_in_tray: bool,
     pub global_shortcut: bool,
     pub favorites: BTreeSet<String>,
 }
@@ -37,7 +36,6 @@ impl Default for Preferences {
             low_battery: true,
             disconnected: true,
             errors: true,
-            keep_in_tray: true,
             global_shortcut: false,
             favorites: BTreeSet::new(),
         }

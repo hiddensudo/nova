@@ -65,6 +65,8 @@ The microphone section in Mixer controls mic gain. The Device panel controls the
 
 ## Desktop integration
 
+Only one GUI instance runs per desktop session. Launching it again restores and focuses the existing window. Closing with X exits the application and stops its mixer; use the separate header button to minimize to the system tray.
+
 Nova Control uses the StatusNotifierItem system tray where available. The tray menu can switch between the four Sidetone levels and reopen the last visible panel. The Device panel lets you choose Ukrainian or English and toggle desktop notification types independently. Notifications require the Linux notify-send command.
 
 Use **Assign global shortcut** in Device settings to register a Sidetone cycle shortcut. This requires a desktop backend for the XDG Global Shortcuts portal. The desktop may ask for approval or let you choose a key combination.

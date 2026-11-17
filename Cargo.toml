@@ -1,0 +1,13 @@
+[package]
+name = "nova-control"
+version = "0.1.1"
+edition = "2024"
+rust-version = "1.95"
+
+[dependencies]
+libc = "0.2"
+eframe = { version = "0.37", default-features = false, features = ["default_fonts", "glow", "wayland", "x11"], optional = true }
+
+[features]
+default = ["gui"]
+gui = ["dep:eframe"]

@@ -1,0 +1,15 @@
+[Desktop Entry]
+Type=Application
+Name=Nova Control
+GenericName=Headset Settings
+GenericName[uk]=Налаштування гарнітури
+Comment=Configure the SteelSeries Arctis Nova 7 Gen 2
+Comment[uk]=Налаштування SteelSeries Arctis Nova 7 Gen 2
+Exec=@EXEC@ gui
+TryExec=@TRY_EXEC@
+Icon=audio-headphones
+Terminal=false
+Categories=Settings;HardwareSettings;
+Keywords=Nova;SteelSeries;Arctis;Headset;Sidetone;
+Keywords[uk]=Nova;SteelSeries;Arctis;гарнітура;навушники;мікрофон;Sidetone;
+StartupWMClass=nova-control

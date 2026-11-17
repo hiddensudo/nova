@@ -2,6 +2,7 @@ pub mod chatmix;
 pub mod eq;
 mod hidraw;
 mod protocol;
+pub mod settings;
 mod usbfs;
 
 use std::{io, sync::Mutex, time::Duration};

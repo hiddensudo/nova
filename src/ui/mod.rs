@@ -4,6 +4,7 @@ mod eq;
 mod eq_editor;
 mod layout;
 mod mixer;
+mod settings;
 mod slider;
 mod theme;
 

@@ -23,6 +23,7 @@ impl Engine {
                     (Page::Microphone, "Мікрофон"),
                     (Page::Eq, "EQ"),
                     (Page::Mixer, "Мікшер"),
+                    (Page::Settings, "Пристрій"),
                 ] {
                     let text = RichText::new(label).strong().color(if self.page == page {
                         ACCENT
@@ -49,8 +50,12 @@ impl Engine {
                     .show(ui, |ui| match self.page {
                         Page::Microphone => self.microphone(ui),
                         Page::Mixer => self.mixer.show(ui),
+                        Page::Settings => {
+                            let busy = self.mic_busy() || self.eq.busy();
+                            self.settings.show(ui, busy);
+                        }
                         Page::Eq => {
-                            let busy = self.mic_busy();
+                            let busy = self.mic_busy() || self.settings.busy();
                             self.eq.show(ui, busy);
                         }
                     });

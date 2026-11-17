@@ -60,3 +60,7 @@ nova-control eq import ~/nova-eq.json
 Потрібен `pactl` і запущений `pipewire-pulse`. На Debian та Ubuntu команда `pactl` є в пакунку `pulseaudio-utils`, на Arch — `libpulse`. Мікшер працює, поки відкритий Nova Control, або у терміналі з `nova-control mixer run`. Зупинка прибирає віртуальні канали.
 
 У мікшері можна увімкнути **Фізичне коліщатко ChatMix** і вибрати будь-які два канали. Ліва позиція коліщатка відповідає першому каналу у списку. Третій канал і загальна гучність гарнітури зберігають власні рівні. Через CLI використовуй `nova-control mixer chatmix Game Media`. Поточну апаратну позицію читає `nova-control mixer dial`.
+
+## Налаштування пристрою
+
+Вкладка **Пристрій** показує заряд і стан заряджання, регулює рівень мікрофона, таймер автовимкнення та яскравість LED вимкненого мікрофона. Команди термінала `nova-control settings get`, `settings mic 6`, `settings sleep 30`, `settings led 2` і `settings save`.

@@ -7,7 +7,7 @@ WORKDIR /source
 COPY . .
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/source/target,sharing=locked \
-    cargo test --locked && python3 -m unittest discover -s tests && \
+    cargo test --locked && cargo test --locked --no-default-features && python3 -m unittest discover -s tests && \
     python3 scripts/package.py --output /out
 
 FROM scratch AS artifacts

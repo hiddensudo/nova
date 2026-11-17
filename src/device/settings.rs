@@ -31,6 +31,7 @@ pub enum ChargeState {
     Discharging,
 }
 
+#[cfg(feature = "gui")]
 impl ChargeState {
     pub fn label(self) -> &'static str {
         match self {

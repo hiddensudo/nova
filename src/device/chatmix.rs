@@ -9,6 +9,10 @@ pub fn position() -> Result<[u8; 2], String> {
     with_device(|port| decode(&status(port, DIAL_TIMEOUT)?))
 }
 
+pub(crate) fn try_position() -> Result<Option<[u8; 2]>, String> {
+    super::try_with_device(|port| decode(&status(port, Duration::from_millis(70))?))
+}
+
 pub(super) fn status(port: &mut dyn HidReports, timeout: Duration) -> Result<Vec<u8>, String> {
     query(port, &[STATUS, 0], timeout)
 }

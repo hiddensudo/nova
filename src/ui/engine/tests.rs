@@ -21,7 +21,6 @@ fn four_slider_levels_fit_without_a_refresh_button() {
     let ctx = Context::default();
     configure(&ctx);
     let mut app = Engine {
-        page: Page::Microphone,
         level: Some(Sidetone::Medium),
         ..Default::default()
     };
@@ -29,7 +28,7 @@ fn four_slider_levels_fit_without_a_refresh_button() {
         screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(640.0, 400.0))),
         ..Default::default()
     };
-    let mut output = ctx.run_ui(input, |ui| app.draw(ui));
+    let mut output = ctx.run_ui(input, |ui| app.sidetone_card(ui, app.prefs.language));
     output.textures_delta.clear();
     let labels: Vec<_> = output
         .shapes
@@ -43,7 +42,6 @@ fn four_slider_levels_fit_without_a_refresh_button() {
         );
     }
     assert!(!labels.iter().any(|label| label == "Оновити"));
-    assert!(labels.iter().any(|label| label == "Мікрофон"), "{labels:?}");
 }
 
 #[test]
@@ -142,8 +140,7 @@ fn all_panels_show_primary_controls_at_the_minimum_window_size() {
     assert_eq!(app.page.name(app.prefs.language), "Огляд");
 
     for (page, wanted) in [
-        (Page::Overview, ["Arctis Nova 7 Gen 2", "Швидкі дії"]),
-        (Page::Microphone, ["Sidetone", "Підсилення мікрофона"]),
+        (Page::Overview, ["Arctis Nova 7 Gen 2", "Аудіо"]),
         (Page::Eq, ["Focus", "Пресети"]),
         (Page::Mixer, ["Мікшер", "+  Додати канал"]),
         (Page::Settings, ["Системні сповіщення", "Гарнітура"]),
@@ -169,7 +166,7 @@ fn all_panels_show_primary_controls_at_the_minimum_window_size() {
                 "missing {expected}: {labels:?}"
             );
         }
-        if page == Page::Microphone {
+        if page == Page::Overview {
             assert!(!labels.iter().any(|label| label == "Зберегти в гарнітурі"));
         }
     }

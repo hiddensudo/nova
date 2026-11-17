@@ -14,7 +14,6 @@ pub(super) enum Icon {
     Eq,
     Mixer,
     Headset,
-    Battery(bool),
     Speaker(bool),
     Channel(ChannelIcon),
 }
@@ -219,16 +218,5 @@ fn paint(painter: &Painter, center: Pos2, icon: Icon, color: Color32) {
                 painter.circle_filled(center, 1.5, color);
             }
         },
-        Icon::Battery(charging) => {
-            box_at(-8.0, -4.0, 14.0, 8.0, 2);
-            line(8.0, -1.0, 8.0, 1.0);
-            if charging {
-                line(0.0, -3.0, -2.0, 0.0);
-                line(-2.0, 0.0, 2.0, 0.0);
-                line(2.0, 0.0, 0.0, 3.0);
-            } else {
-                line(-5.0, 0.0, 1.0, 0.0);
-            }
-        }
     }
 }

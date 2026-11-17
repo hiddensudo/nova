@@ -21,7 +21,7 @@ pub(super) struct Curve {
 impl Curve {
     pub fn show(&mut self, ui: &mut Ui, bands: &mut [Band; BAND_COUNT], enabled: bool) -> bool {
         let (rect, response) = ui.allocate_exact_size(
-            vec2(ui.available_width(), 202.0),
+            vec2(ui.available_width(), 235.0),
             if enabled {
                 Sense::click_and_drag()
             } else {

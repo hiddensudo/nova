@@ -15,6 +15,7 @@ const READ_INTERVAL: Duration = Duration::from_secs(3);
 #[derive(Default)]
 pub(super) struct Engine {
     pub(super) page: Page,
+    pub(super) navigation: super::navigation::Navigation,
     pub(super) eq: EqPage,
     pub(super) mixer: MixerPage,
     pub(super) settings: SettingsPage,
@@ -33,7 +34,6 @@ pub(super) struct Engine {
 pub(super) enum Page {
     #[default]
     Overview,
-    Microphone,
     Eq,
     Mixer,
     Settings,

@@ -92,6 +92,7 @@ impl EqPage {
             ui.colored_label(WARNING, error);
         }
         let enabled = !self.busy() && !device_busy;
+        let mut panel_height = 330.0;
         ui.horizontal_top(|ui| {
             let width = ui.available_width();
             let catalog_width = (width * 0.24).clamp(148.0, 201.0);
@@ -99,7 +100,7 @@ impl EqPage {
                 egui::vec2(width - catalog_width - ui.spacing().item_spacing.x, 0.0),
                 egui::Layout::top_down(egui::Align::Min),
                 |ui| {
-                    card(ui, |ui| {
+                    let panel = card(ui, |ui| {
                         if let Some(editor) = &mut self.editor {
                             if let Some(action) =
                                 editor.show(ui, self.active.as_ref(), lang, enabled)
@@ -115,28 +116,31 @@ impl EqPage {
                             self.run(ui.ctx(), eq::current);
                         }
                     });
+                    panel_height = panel.response.rect.height() - 26.0;
                 },
             );
             ui.allocate_ui_with_layout(
                 egui::vec2(catalog_width, 0.0),
                 egui::Layout::top_down(egui::Align::Min),
                 |ui| {
-                    card(ui, |ui| self.catalog(ui, prefs, enabled));
+                    card(ui, |ui| {
+                        ui.set_min_height(panel_height);
+                        self.catalog(ui, prefs, enabled);
+                    });
                 },
             );
         });
-        if let Some(active) = &self.active {
-            ui.label(format!(
-                "{} · {}",
-                lang.text("На гарнітурі", "On headset"),
-                active.name
-            ));
-        }
-        egui::CollapsingHeader::new(lang.text("Імпорт профілю", "Import profile")).show(ui, |ui| {
-            ui.horizontal_wrapped(|ui| {
+        ui.add_space(10.0);
+        card(ui, |ui| {
+            ui.strong(lang.text("Файли профілів", "Profile files"));
+            ui.add_space(5.0);
+            let path_width = (ui.available_width() - 235.0).max(125.0);
+            ui.horizontal(|ui| {
+                ui.label(lang.text("Імпорт JSON", "Import JSON"));
                 ui.add(
                     egui::TextEdit::singleline(&mut self.path)
-                        .hint_text(lang.text("Шлях до JSON-профілю", "Path to JSON profile")),
+                        .desired_width(path_width)
+                        .hint_text(lang.text("Шлях до профілю", "Path to profile")),
                 );
                 if ui
                     .add_enabled(
@@ -147,6 +151,15 @@ impl EqPage {
                 {
                     let path = PathBuf::from(self.path.trim());
                     self.run(ui.ctx(), move || eq::apply(&eq::from_file(&path)?));
+                }
+            });
+            ui.horizontal_wrapped(|ui| {
+                if let Some(active) = &self.active {
+                    ui.label(format!(
+                        "{} · {}",
+                        lang.text("На гарнітурі", "On headset"),
+                        active.name
+                    ));
                 }
                 if ui
                     .add_enabled(
@@ -168,7 +181,11 @@ impl EqPage {
             egui::TextEdit::singleline(&mut self.search)
                 .hint_text(lang.text("Пошук пресетів", "Search presets")),
         );
-        ui.checkbox(&mut self.only_favorites, lang.text("Обране", "Favorites"));
+        super::controls::toggle(
+            ui,
+            &mut self.only_favorites,
+            lang.text("Обране", "Favorites"),
+        );
         let needle = self.search.trim().to_ascii_lowercase();
         let mut visible = false;
         for preset in eq::PRESETS {

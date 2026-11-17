@@ -7,6 +7,7 @@ use super::{Channel, ChannelIcon, Pair, channel::CustomChannel};
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(default)]
 pub struct Config {
+    pub revision: u64,
     pub routes: BTreeMap<String, Channel>,
     levels: [u8; 3],
     pub pair: Option<Pair>,
@@ -20,6 +21,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            revision: 0,
             routes: BTreeMap::new(),
             levels: [100; 3],
             pair: None,
@@ -183,6 +185,29 @@ impl Config {
         Ok(())
     }
 
+    #[cfg(feature = "gui")]
+    pub fn move_channel(&mut self, channel: Channel, before: Channel) -> Result<(), String> {
+        if !self.exists(channel) || !self.exists(before) {
+            return Err("Канал видалено.".into());
+        }
+        if channel == before {
+            return Ok(());
+        }
+        let mut order = self.channels();
+        let from = order
+            .iter()
+            .position(|&row| row == channel)
+            .expect("existing channel");
+        let to = order
+            .iter()
+            .position(|&row| row == before)
+            .expect("existing channel");
+        order.remove(from);
+        order.insert(to, channel);
+        self.channel_order = order;
+        Ok(())
+    }
+
     pub fn rename_channel(&mut self, channel: Channel, name: &str) -> Result<(), String> {
         let name = self.validate_name(name, Some(channel))?;
         self.custom_mut(channel)
@@ -265,6 +290,25 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "gui")]
+    #[test]
+    fn reorders_builtin_channels_without_changing_routes_or_chatmix() {
+        let mut config = Config::default();
+        config.routes.insert("spotify".into(), Channel::Media);
+        config.pair = Some(Pair::new(Channel::Game, Channel::Media).unwrap());
+        config.move_channel(Channel::Game, Channel::Chat).unwrap();
+        assert_eq!(
+            config.channels(),
+            [Channel::Media, Channel::Chat, Channel::Game]
+        );
+        assert_eq!(config.routes["spotify"], Channel::Media);
+        assert_eq!(config.pair.unwrap().left, Channel::Game);
+        let restored: Config =
+            serde_json::from_str(&serde_json::to_string(&config).unwrap()).unwrap();
+        assert_eq!(restored.channels(), config.channels());
+        restored.validate().unwrap();
+    }
 
     #[test]
     fn keeps_legacy_levels_routes_and_chatmix() {

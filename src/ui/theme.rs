@@ -39,14 +39,26 @@ pub(super) fn configure(ctx: &Context) {
     visuals.widgets.inactive.bg_stroke = Stroke::new(1.0, BORDER);
     visuals.widgets.hovered.weak_bg_fill = Color32::from_rgb(54, 56, 64);
     visuals.widgets.active.weak_bg_fill = SELECTED;
-    visuals.selection.bg_fill = SELECTED;
+    visuals.handle_shape = egui::style::HandleShape::Circle;
+    visuals.selection.bg_fill = ACCENT;
     visuals.selection.stroke = Stroke::new(1.0, ACCENT);
     ctx.set_theme(egui::Theme::Dark);
     ctx.set_visuals(visuals);
 
     ctx.style_mut_of(egui::Theme::Dark, |style| {
+        style.interaction.selectable_labels = false;
+        style.interaction.multi_widget_text_select = false;
         style.spacing.item_spacing = vec2(8.0, 6.0);
-        style.spacing.interact_size.y = 25.0;
+        style.spacing.interact_size.y = 29.0;
+        style
+            .text_styles
+            .insert(egui::TextStyle::Body, egui::FontId::proportional(14.0));
+        style
+            .text_styles
+            .insert(egui::TextStyle::Button, egui::FontId::proportional(14.0));
+        style
+            .text_styles
+            .insert(egui::TextStyle::Small, egui::FontId::proportional(12.0));
         style.spacing.button_padding = vec2(8.0, 4.0);
     });
 

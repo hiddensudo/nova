@@ -2,6 +2,7 @@ mod channel;
 mod chatmix;
 mod config;
 mod config_store;
+mod dial;
 mod pulse;
 mod session;
 
@@ -84,17 +85,43 @@ pub fn run(
     lock.try_lock().map_err(|error| {
         format!("Мікшер Nova Control уже запущено або він недоступний ({error}).")
     })?;
+    let reader = dial::DialReader::start();
     let mut controller = Controller::default();
+    let mut latest = None;
     let mut next_route = Instant::now();
     while !stop() {
-        if Instant::now() >= next_route {
-            update(controller.tick());
-            next_route = Instant::now() + Duration::from_millis(600);
+        let started = Instant::now();
+        if started >= next_route {
+            match controller.tick() {
+                Ok(snapshot) => {
+                    latest = Some(snapshot.clone());
+                    update(Ok(snapshot));
+                }
+                Err(error) => {
+                    update(Err(error));
+                }
+            }
+            next_route = Instant::now() + Duration::from_millis(350);
         }
-        if let Err(error) = controller.follow_dial() {
-            update(Err(error));
+        let enabled = controller.session.is_some() && controller.pair.is_some();
+        reader
+            .enabled
+            .store(enabled, std::sync::atomic::Ordering::Relaxed);
+        if let Some(position) = reader.latest().filter(|_| enabled)
+            && (controller.dial != Some(position) || controller.levels.is_none())
+        {
+            controller.dial = Some(position);
+            match controller.apply_levels() {
+                Ok(()) => {
+                    if let Some(snapshot) = latest.as_mut() {
+                        snapshot.dial = Some(position);
+                        update(Ok(snapshot.clone()));
+                    }
+                }
+                Err(error) => update(Err(error)),
+            }
         }
-        thread::sleep(Duration::from_millis(140));
+        thread::sleep(Duration::from_millis(15).saturating_sub(started.elapsed()));
     }
     Ok(())
 }
@@ -163,18 +190,6 @@ impl Controller {
             dial: self.dial,
         })
     }
-    fn follow_dial(&mut self) -> Result<(), String> {
-        if self.session.is_some()
-            && self.pair.is_some()
-            && let Ok(position) = crate::device::chatmix::position()
-            && self.dial != Some(position)
-        {
-            self.dial = Some(position);
-            self.apply_levels()?;
-        }
-        Ok(())
-    }
-
     fn apply_levels(&mut self) -> Result<(), String> {
         let levels: std::collections::BTreeMap<_, _> = self
             .config

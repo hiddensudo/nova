@@ -10,9 +10,8 @@ use super::{
 };
 
 impl Page {
-    const NAVIGATION: [(Self, Icon); 5] = [
+    const NAVIGATION: [(Self, Icon); 4] = [
         (Self::Overview, Icon::Overview),
-        (Self::Microphone, Icon::Mic),
         (Self::Eq, Icon::Eq),
         (Self::Mixer, Icon::Mixer),
         (Self::Settings, Icon::Headset),
@@ -21,7 +20,6 @@ impl Page {
     pub fn name(self, language: Language) -> &'static str {
         match self {
             Self::Overview => language.text("Огляд", "Overview"),
-            Self::Microphone => language.text("Мікрофон", "Microphone"),
             Self::Eq => "EQ",
             Self::Mixer => language.text("Мікшер", "Mixer"),
             Self::Settings => language.text("Пристрій", "Device"),
@@ -31,6 +29,7 @@ impl Page {
 
 impl Engine {
     pub(super) fn draw(&mut self, ui: &mut Ui) {
+        self.mouse_navigation(ui.ctx());
         let lang = self.prefs.language;
         egui::Panel::left("nova-rail")
             .resizable(false)
@@ -44,14 +43,14 @@ impl Engine {
             .show(ui, |ui| {
                 ui.vertical_centered(|ui| {
                     if icons::button(ui, Icon::Logo, "Nova Control", false, false).clicked() {
-                        self.page = Page::Overview;
+                        self.navigate(Page::Overview);
                     }
                     ui.add_space(11.0);
                     for (page, icon) in Page::NAVIGATION {
                         if icons::button(ui, icon, page.name(lang), self.page == page, true)
                             .clicked()
                         {
-                            self.page = page;
+                            self.navigate(page);
                         }
                         ui.add_space(2.0);
                     }
@@ -115,24 +114,30 @@ impl Engine {
                         let mic_busy = self.mic_busy();
                         match page {
                             Page::Overview => self.overview(ui, lang),
-                            Page::Microphone => self.microphone(ui, lang),
-                            Page::Mixer => self.mixer.show(ui, lang),
+                            Page::Mixer => {
+                                self.mixer.show(ui, lang);
+                                ui.add_space(10.0);
+                                self.microphone(ui, lang);
+                            }
                             Page::Settings => self.settings.show(
                                 ui,
                                 &mut self.prefs,
                                 mic_busy || self.eq.busy(),
                                 self.desktop.as_mut(),
                             ),
-                            Page::Eq => {
-                                self.eq
-                                    .show(ui, &mut self.prefs, mic_busy || self.settings.busy())
-                            }
+                            Page::Eq => self.eq.show(
+                                ui,
+                                &mut self.prefs,
+                                mic_busy || self.settings.writing(),
+                            ),
                         }
                     });
             });
     }
 
-    fn microphone(&mut self, ui: &mut Ui, lang: Language) {
+    pub(super) fn microphone(&mut self, ui: &mut Ui, lang: Language) {
+        ui.strong(lang.text("Мікрофон", "Microphone"));
+        ui.add_space(4.0);
         let device_busy = self.mic_busy() || self.eq.busy();
         if ui.available_width() >= 540.0 {
             ui.columns(2, |columns| {
@@ -147,7 +152,7 @@ impl Engine {
         }
     }
 
-    fn sidetone_card(&mut self, ui: &mut Ui, lang: Language) {
+    pub(super) fn sidetone_card(&mut self, ui: &mut Ui, lang: Language) {
         let title = ui.strong("Sidetone");
         self.sidetone_slider(ui).labelled_by(title.id);
         if let Some(level) = self.pending_level() {
@@ -171,7 +176,7 @@ impl Engine {
                 )
                 .fill(ACCENT);
                 if ui
-                    .add_enabled(!self.eq.busy() && !self.settings.busy(), save)
+                    .add_enabled(!self.eq.busy() && !self.settings.writing(), save)
                     .clicked()
                 {
                     self.submit(ui.ctx(), Operation::Save);

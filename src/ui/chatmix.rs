@@ -19,8 +19,9 @@ pub(super) fn controls(
         left: Channel::Game,
         right: Channel::Media,
     });
-    ui.horizontal_wrapped(|ui| {
-        ui.checkbox(&mut enabled, "ChatMix")
+    let available = ui.available_width();
+    ui.horizontal(|ui| {
+        super::controls::toggle(ui, &mut enabled, "ChatMix")
             .on_hover_text(lang.text("Фізичне коліщатко", "Physical dial"));
         ui.add_enabled_ui(enabled, |ui| {
             let choices = config.channels();
@@ -36,7 +37,13 @@ pub(super) fn controls(
                 });
             let colors = [pair.left, pair.right]
                 .map(|channel| super::mixer_channels::color(config.color(channel)));
-            gauge(ui, enabled.then_some(dial).flatten(), colors, lang);
+            gauge(
+                ui,
+                enabled.then_some(dial).flatten(),
+                colors,
+                lang,
+                (available - 343.0).max(40.0),
+            );
             ComboBox::from_id_salt("chatmix-right")
                 .width(86.0)
                 .selected_text(config.name(pair.right))
@@ -53,10 +60,9 @@ pub(super) fn controls(
     (selected != previous).then_some(selected)
 }
 
-fn gauge(ui: &mut Ui, dial: Option<[u8; 2]>, colors: [Color32; 2], lang: Language) {
+fn gauge(ui: &mut Ui, dial: Option<[u8; 2]>, colors: [Color32; 2], lang: Language, width: f32) {
     use eframe::egui::{Align2, FontId};
 
-    let width = (ui.available_width() - 110.0).clamp(65.0, 440.0);
     let (rect, response) = ui.allocate_exact_size(vec2(width, 27.0), Sense::hover());
     let (label, position) = match dial {
         Some([left, right]) => (
@@ -86,6 +92,9 @@ fn gauge(ui: &mut Ui, dial: Option<[u8; 2]>, colors: [Color32; 2], lang: Languag
         Stroke::new(1.0, BORDER),
     );
     if let Some(position) = position {
+        let position = ui
+            .ctx()
+            .animate_value_with_time(response.id, position, 0.055);
         let x = eframe::egui::lerp(track.x_range(), position);
         painter.rect_filled(
             Rect::from_center_size(pos2(x, track.center().y), vec2(4.0, 11.0)),

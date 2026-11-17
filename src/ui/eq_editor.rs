@@ -73,7 +73,21 @@ impl Editor {
                     if ui
                         .add_enabled(
                             enabled && validation.is_ok(),
-                            Button::new("B").selected(self.comparison == Comparison::Draft),
+                            Button::new(
+                                RichText::new(lang.text("B · Поточна", "B · Current")).color(
+                                    if self.comparison == Comparison::Draft {
+                                        SIDEBAR
+                                    } else {
+                                        super::theme::TEXT
+                                    },
+                                ),
+                            )
+                            .fill(if self.comparison == Comparison::Draft {
+                                ACCENT
+                            } else {
+                                super::theme::RAISED
+                            })
+                            .min_size(eframe::egui::vec2(109.0, 33.0)),
                         )
                         .on_hover_text(lang.text("Прослухати поточну криву", "Listen to draft"))
                         .clicked()
@@ -83,7 +97,21 @@ impl Editor {
                     if ui
                         .add_enabled(
                             enabled,
-                            Button::new("A").selected(self.comparison == Comparison::Original),
+                            Button::new(
+                                RichText::new(lang.text("A · Попередня", "A · Previous")).color(
+                                    if self.comparison == Comparison::Original {
+                                        SIDEBAR
+                                    } else {
+                                        super::theme::TEXT
+                                    },
+                                ),
+                            )
+                            .fill(if self.comparison == Comparison::Original {
+                                ACCENT
+                            } else {
+                                super::theme::RAISED
+                            })
+                            .min_size(eframe::egui::vec2(115.0, 33.0)),
                         )
                         .on_hover_text(
                             lang.text("Прослухати попередню криву", "Listen to previous curve"),

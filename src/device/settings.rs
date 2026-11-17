@@ -68,6 +68,17 @@ pub fn current() -> Result<Settings, String> {
     with_device(read)
 }
 
+#[cfg(feature = "gui")]
+pub fn refresh_status(mut previous: Settings) -> Result<Settings, String> {
+    with_device(|port| {
+        let status = chatmix::status(port, Duration::from_millis(150))?;
+        let audio = [AUDIO, previous.mic_volume];
+        let ux = [UX, previous.sleep_minutes, previous.mute_led];
+        previous = decode(&status, &audio, &ux)?;
+        Ok(previous)
+    })
+}
+
 pub fn apply(change: Change) -> Result<Settings, String> {
     let command = change.command()?;
     with_device(|port| {

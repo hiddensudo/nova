@@ -9,56 +9,97 @@ use super::{
 
 impl Engine {
     pub fn overview(&mut self, ui: &mut Ui, lang: Language) {
+        card(ui, |ui| {
+            ui.horizontal(|ui| {
+                icons::label(ui, Icon::Headset, ACCENT);
+                ui.label(RichText::new("SteelSeries").color(MUTED));
+            });
+            ui.add_space(6.0);
+            ui.label(RichText::new("Arctis Nova 7 Gen 2").size(26.0).strong());
+            ui.add_space(6.0);
+            ui.horizontal_wrapped(|ui| {
+                self.status_connection(ui, false);
+                self.status_battery(ui);
+                if let Some(state) = self.settings.data() {
+                    ui.separator();
+                    ui.label(if state.charging.is_charging() {
+                        lang.text("Заряджається", "Charging")
+                    } else {
+                        lang.text("Живлення від батареї", "On battery")
+                    });
+                }
+            });
+        });
+        ui.add_space(10.0);
         ui.columns(2, |columns| {
             card(&mut columns[0], |ui| {
-                ui.horizontal(|ui| {
-                    icons::label(ui, Icon::Headset, ACCENT);
-                    ui.label(RichText::new("SteelSeries").color(MUTED));
-                });
-                ui.add_space(5.0);
-                ui.label(RichText::new("Arctis Nova 7 Gen 2").size(21.0).strong());
-                ui.add_space(5.0);
-                ui.horizontal_wrapped(|ui| {
-                    self.status_connection(ui, false);
-                    self.status_battery(ui);
-                });
-            });
-            columns[0].add_space(7.0);
-            card(&mut columns[0], |ui| {
-                ui.horizontal(|ui| {
-                    ui.strong(lang.text("Канали", "Channels"));
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui
-                            .small_button("›")
-                            .on_hover_text(Page::Mixer.name(lang))
-                            .clicked()
-                        {
-                            self.page = Page::Mixer;
-                        }
-                    });
-                });
-                self.mixer.summary(ui, lang);
-            });
-            card(&mut columns[1], |ui| {
-                ui.strong(lang.text("Швидкі дії", "Quick actions"));
-                let sidetone = self.level.map_or("—", |level| level.label());
-                let preset = self.eq.name().unwrap_or("—");
-                for (page, label, detail) in [
-                    (Page::Microphone, "Sidetone", sidetone),
-                    (Page::Eq, "EQ", preset),
-                    (Page::Mixer, Page::Mixer.name(lang), "ChatMix"),
+                ui.strong(lang.text("Аудіо", "Audio"));
+                ui.add_space(4.0);
+                let preset = self.eq.name().unwrap_or("—").to_owned();
+                ui.label(format!("EQ · {preset}"));
+                ui.label(format!(
+                    "Sidetone · {}",
+                    self.level.map_or("—", |level| level.label())
+                ));
+                ui.add_space(8.0);
+                for (page, label) in [
+                    (Page::Eq, lang.text("Відкрити EQ", "Open EQ")),
+                    (
+                        Page::Mixer,
+                        lang.text("Мікшер і мікрофон", "Mixer and microphone"),
+                    ),
                 ] {
                     if ui
-                        .add_sized(
-                            [ui.available_width(), 30.0],
-                            egui::Button::new(format!("{label}  ·  {detail}  ›")),
-                        )
+                        .add_sized([ui.available_width(), 32.0], egui::Button::new(label))
                         .clicked()
                     {
-                        self.page = page;
+                        self.navigate(page);
                     }
                 }
             });
+            card(&mut columns[1], |ui| {
+                ui.strong(lang.text("Канали", "Channels"));
+                ui.add_space(6.0);
+                self.mixer.summary(ui, lang);
+                ui.add_space(5.0);
+                if ui
+                    .button(lang.text("Керувати каналами", "Manage channels"))
+                    .clicked()
+                {
+                    self.navigate(Page::Mixer);
+                }
+            });
+        });
+        ui.add_space(10.0);
+        card(ui, |ui| {
+            ui.strong(lang.text("Гарнітура", "Headset"));
+            if let Some(state) = self.settings.data() {
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(format!(
+                        "{} · {}/7",
+                        lang.text("Мікрофон", "Microphone"),
+                        state.mic_volume
+                    ));
+                    ui.separator();
+                    ui.label(format!(
+                        "Mute LED · {}",
+                        ["Off", "Low", "Medium", "High"][usize::from(state.mute_led)]
+                    ));
+                    ui.separator();
+                    ui.label(format!(
+                        "{} · {} {}",
+                        lang.text("Автовимкнення", "Auto-off"),
+                        state.sleep_minutes,
+                        lang.text("хв", "min")
+                    ));
+                });
+            }
+            if ui
+                .button(lang.text("Налаштування пристрою", "Device settings"))
+                .clicked()
+            {
+                self.navigate(Page::Settings);
+            }
         });
     }
 
@@ -108,7 +149,7 @@ impl Engine {
             MUTED
         };
         ui.horizontal(|ui| {
-            let icon = |ui: &mut Ui| icons::label(ui, Icon::Battery(charging), color);
+            let icon = |ui: &mut Ui| super::battery::icon(ui, percent, charging, color);
             let text = |ui: &mut Ui| {
                 ui.label(RichText::new(format!("{percent}%")).small().color(color));
             };

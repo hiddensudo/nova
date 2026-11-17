@@ -97,10 +97,11 @@ impl MixerPage {
                 );
                 ui.add(
                     egui::ProgressBar::new(f32::from(percent) / 100.0)
-                        .desired_width(ui.available_width())
-                        .fill(tint)
-                        .show_percentage(),
+                        .desired_width((ui.available_width() - 48.0).max(30.0))
+                        .desired_height(5.0)
+                        .fill(tint),
                 );
+                ui.label(format!("{percent}%"));
             });
         }
         if self.worker.is_none() {
@@ -112,8 +113,13 @@ impl MixerPage {
         let Some(worker) = &self.worker else { return };
         while let Ok(result) = worker.rx.try_recv() {
             match result {
-                Ok(state) => {
-                    self.config = state.config.clone();
+                Ok(mut state) => {
+                    if state.config.revision >= self.config.revision {
+                        self.config = state.config.clone();
+                    }
+                    for stream in &mut state.streams {
+                        stream.channel = self.config.routes.get(&stream.key).copied();
+                    }
                     self.state = Some(state);
                     self.error = None;
                 }
@@ -217,6 +223,9 @@ impl MixerPage {
             }
             Action::Color(channel, color) => {
                 self.update(|config| config.set_color(channel, color));
+            }
+            Action::Reorder(channel, target) => {
+                self.update(|config| config.move_channel(channel, target));
             }
             Action::Edit(channel @ Channel::Custom(_)) => {
                 self.dialog = Some(ChannelDialog::new(Some(channel), &self.config))

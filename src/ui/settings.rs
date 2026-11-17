@@ -4,7 +4,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use eframe::egui::{self, ComboBox, Context, Ui};
+use eframe::egui::{ComboBox, Context, Ui};
 
 use crate::device::{
     self,
@@ -23,8 +23,10 @@ pub(super) struct SettingsPage {
     request: Option<mpsc::Receiver<Result<Settings, String>>>,
     error: Option<String>,
     next_read: Option<Instant>,
+    full_read: Option<Instant>,
     notices: Notifications,
     gain_drag: Option<u8>,
+    writing: bool,
 }
 
 impl SettingsPage {
@@ -51,8 +53,10 @@ impl SettingsPage {
                 Err("Headset settings request interrupted.".into())
             }
         };
-        self.next_read = Some(Instant::now() + Duration::from_secs(5));
+        self.next_read =
+            Some(Instant::now() + Duration::from_millis(if result.is_ok() { 350 } else { 1500 }));
         self.request = None;
+        self.writing = false;
         match result {
             Ok(state) => {
                 self.notices.observe(state, prefs);
@@ -76,6 +80,10 @@ impl SettingsPage {
         self.request.is_some()
     }
 
+    pub fn writing(&self) -> bool {
+        self.writing
+    }
+
     pub fn data(&self) -> Option<Settings> {
         self.state
     }
@@ -91,7 +99,18 @@ impl SettingsPage {
         let now = Instant::now();
         match self.next_read {
             Some(deadline) if deadline > now => ctx.request_repaint_after(deadline - now),
-            _ => self.run(ctx, settings::current),
+            _ => {
+                let previous = self.state;
+                let full =
+                    previous.is_none() || self.full_read.is_none_or(|deadline| now >= deadline);
+                if full {
+                    self.full_read = Some(now + Duration::from_secs(15));
+                }
+                self.run(ctx, move || match previous {
+                    Some(state) if !full => settings::refresh_status(state),
+                    _ => settings::current(),
+                });
+            }
         }
     }
 
@@ -102,17 +121,24 @@ impl SettingsPage {
             .gain_drag
             .or(self.state.map(|state| state.mic_volume))
             .unwrap_or(0);
-        let response = ui.add_enabled(
-            self.enabled(device_busy),
-            egui::Slider::new(&mut value, 0..=7)
-                .text("/ 7")
-                .trailing_fill(true),
-        );
+        let width = (ui.available_width() - 49.0).max(60.0);
+        let response = ui
+            .add_enabled_ui(self.enabled(device_busy), |ui| {
+                ui.horizontal(|ui| {
+                    let response =
+                        super::controls::fader(ui, &mut value, 7, super::theme::ACCENT, width);
+                    ui.label(format!("{value}/7"));
+                    response
+                })
+                .inner
+            })
+            .inner;
         if response.dragged() {
             self.gain_drag = Some(value);
         } else if response.drag_stopped() || response.changed() {
             self.gain_drag = None;
             let change = Change::MicVolume(value);
+            self.writing = true;
             self.run(ui.ctx(), move || settings::apply(change));
         }
         self.status(ui);
@@ -126,22 +152,22 @@ impl SettingsPage {
         desktop: Option<&mut super::desktop::Desktop>,
     ) {
         let lang = prefs.language;
-        if ui.available_width() >= 560.0 {
-            ui.columns(2, |columns| {
-                card(&mut columns[0], |ui| self.hardware(ui, lang, device_busy));
-                card(&mut columns[1], |ui| Self::notifications(ui, prefs));
-                columns[0].add_space(9.0);
-                card(&mut columns[0], |ui| Self::application(ui, prefs, desktop));
+        ui.columns(2, |columns| {
+            card(&mut columns[0], |ui| {
+                ui.set_min_height(162.0);
+                self.hardware(ui, lang, device_busy);
             });
-        } else {
-            card(ui, |ui| self.hardware(ui, lang, device_busy));
-            card(ui, |ui| Self::notifications(ui, prefs));
-            card(ui, |ui| Self::application(ui, prefs, desktop));
-        }
+            card(&mut columns[1], |ui| {
+                ui.set_min_height(162.0);
+                Self::notifications(ui, prefs);
+            });
+        });
+        ui.add_space(10.0);
+        card(ui, |ui| Self::application(ui, prefs, desktop));
     }
 
     fn enabled(&self, device_busy: bool) -> bool {
-        !self.busy()
+        !self.writing
             && !device_busy
             && self.state.is_some_and(|state| state.connected)
             && self.error.is_none()
@@ -172,11 +198,13 @@ impl SettingsPage {
                     .map(Change::SleepMinutes)
                     .or_else(|| led.map(Change::MuteLed))
                 {
+                    self.writing = true;
                     self.run(ui.ctx(), move || settings::apply(change));
                 } else if ui
                     .button(lang.text("Зберегти в гарнітурі", "Save to headset"))
                     .clicked()
                 {
+                    self.writing = true;
                     self.run(ui.ctx(), settings::save);
                 }
             });
@@ -195,24 +223,25 @@ impl SettingsPage {
     fn notifications(ui: &mut Ui, prefs: &mut Preferences) {
         let lang = prefs.language;
         ui.strong(lang.text("Системні сповіщення", "Desktop notifications"));
-        let mut changed = ui
-            .checkbox(
-                &mut prefs.low_battery,
-                lang.text("Низький заряд", "Low battery"),
-            )
-            .changed();
-        changed |= ui
-            .checkbox(
-                &mut prefs.disconnected,
-                lang.text("Від’єднання гарнітури", "Headset disconnected"),
-            )
-            .changed();
-        changed |= ui
-            .checkbox(
-                &mut prefs.errors,
-                lang.text("Помилки пристрою", "Device errors"),
-            )
-            .changed();
+        ui.add_space(5.0);
+        let mut changed = super::controls::toggle(
+            ui,
+            &mut prefs.low_battery,
+            lang.text("Низький заряд", "Low battery"),
+        )
+        .changed();
+        changed |= super::controls::toggle(
+            ui,
+            &mut prefs.disconnected,
+            lang.text("Від’єднання гарнітури", "Headset disconnected"),
+        )
+        .changed();
+        changed |= super::controls::toggle(
+            ui,
+            &mut prefs.errors,
+            lang.text("Помилки пристрою", "Device errors"),
+        )
+        .changed();
         Self::save_prefs(ui, prefs, changed);
     }
 
@@ -236,13 +265,14 @@ impl SettingsPage {
         let mut changed = prefs.language != before;
         if let Some(desktop) = desktop {
             changed |= ui
-                .add_enabled(
-                    desktop.has_tray(),
-                    egui::Checkbox::new(
+                .add_enabled_ui(desktop.has_tray(), |ui| {
+                    super::controls::toggle(
+                        ui,
                         &mut prefs.keep_in_tray,
                         before.text("Згортати в системний трей", "Keep in the system tray"),
-                    ),
-                )
+                    )
+                })
+                .inner
                 .changed();
             if desktop.has_shortcut() {
                 if ui

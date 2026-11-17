@@ -2,7 +2,7 @@
 
 [Українська](README.uk.md)
 
-A native Rust application for SteelSeries Arctis Nova 7 Wireless Gen 2 (USB dongle `1038:227e`). The Overview shows connection, battery, active EQ, and quick actions. The microphone panel and header shortcut control the hardware Sidetone levels Off, Low, Medium and High. Nova Control reads the current value automatically and applies slider changes on release. Use **Зберегти в гарнітурі** (Save to headset) or `nova-control sidetone save` to commit the current device settings.
+A native Rust application for SteelSeries Arctis Nova 7 Wireless Gen 2 (USB dongle `1038:227e`). The Overview shows connection, battery, active EQ, and quick actions. The microphone section in Mixer and header shortcut control the hardware Sidetone levels Off, Low, Medium and High. Nova Control reads the current value automatically and applies slider changes on release. Use **Зберегти в гарнітурі** (Save to headset) or `nova-control sidetone save` to commit the current device settings.
 
 ## Install or update
 
@@ -61,7 +61,7 @@ Enable the mixer to create Game, Media, Chat, and any custom sinks you configure
 
 Enable **Фізичне коліщатко ChatMix** (physical ChatMix dial) to balance any two channels, including Game and Media. Other channels keep their own levels. CLI commands include `nova-control mixer chatmix Game Media`, `nova-control mixer chatmix off` and `nova-control mixer dial`.
 
-The microphone panel controls mic gain. The Device panel controls the inactivity timeout and mute LED brightness. These are also available under `nova-control settings`.
+The microphone section in Mixer controls mic gain. The Device panel controls the inactivity timeout and mute LED brightness. These are also available under `nova-control settings`.
 
 ## Desktop integration
 
@@ -70,3 +70,9 @@ Nova Control uses the StatusNotifierItem system tray where available. The tray m
 Use **Assign global shortcut** in Device settings to register a Sidetone cycle shortcut. This requires a desktop backend for the XDG Global Shortcuts portal. The desktop may ask for approval or let you choose a key combination.
 
 The mixer CLI also supports **channel list**, **channel add NAME**, **channel rename NAME NEW**, and **channel remove NAME**. Existing Game, Media and Chat routes carry forward when updating from 0.2.0.
+
+## Navigation and mixer layout
+
+Mouse buttons 4 and 5 navigate backward and forward through visited panels. The Mixer includes Sidetone and mic gain, full-width channel rows, and the application list below them. Drag a channel by its grip to reorder it, or use Move up / Move down in its menu. All channel orders, including built-in channels, are saved.
+
+Hardware ChatMix samples are collected on a dedicated thread with a 25 ms target interval. The UI receives changed samples immediately and animates the position. Headset battery and charging status are queried every 350 ms, with a filling battery indicator while charging.

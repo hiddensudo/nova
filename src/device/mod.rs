@@ -49,6 +49,21 @@ fn with_device<T>(
     operation: impl FnOnce(&mut dyn HidReports) -> Result<T, String>,
 ) -> Result<T, String> {
     let _serial = USB_TRANSACTION.lock().map_err(|error| error.to_string())?;
+    open_device(operation)
+}
+
+fn try_with_device<T>(
+    operation: impl FnOnce(&mut dyn HidReports) -> Result<T, String>,
+) -> Result<Option<T>, String> {
+    let Ok(_serial) = USB_TRANSACTION.try_lock() else {
+        return Ok(None);
+    };
+    open_device(operation).map(Some)
+}
+
+fn open_device<T>(
+    operation: impl FnOnce(&mut dyn HidReports) -> Result<T, String>,
+) -> Result<T, String> {
     match HidrawPort::find()? {
         Some(port) => {
             let file = port.open()?;

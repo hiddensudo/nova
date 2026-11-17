@@ -33,6 +33,10 @@ impl Config {
             .map_err(|error| error.to_string())?;
         lock.lock().map_err(|error| error.to_string())?;
         let mut config = Self::load()?;
+        config.revision = config
+            .revision
+            .checked_add(1)
+            .ok_or("Mixer revision overflow.")?;
         let result = apply(&mut config)?;
         config.validate()?;
         let temporary = path.with_extension("json.tmp");

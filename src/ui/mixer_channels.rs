@@ -1,4 +1,4 @@
-use eframe::egui::{self, Color32, ComboBox, Frame, Response, RichText, Slider, Stroke, Ui, vec2};
+use eframe::egui::{self, Color32, ComboBox, Frame, RichText, Stroke, Ui, vec2};
 
 use crate::mixer::{AppStream, Channel, Config};
 
@@ -8,12 +8,19 @@ use super::{
     theme::{BORDER, MUTED, card},
 };
 
+#[derive(Clone)]
+enum DragItem {
+    Channel(Channel),
+    Application(String),
+}
+
 pub(super) enum Action {
     Level(Channel, u8),
     Mute(Channel, bool),
     Color(Channel, u32),
     Route(String, Option<Channel>),
     Edit(Channel),
+    Reorder(Channel, Channel),
 }
 
 pub(super) fn color(rgb: u32) -> Color32 {
@@ -32,39 +39,64 @@ pub(super) fn channels(
     lang: Language,
 ) -> Option<Action> {
     let mut action = None;
-    for channel in config.channels() {
+    let order = config.channels();
+    let width = ui.available_width();
+    for (index, channel) in order.iter().copied().enumerate() {
         ui.push_id(channel, |ui| {
-            let (row, drop) = ui.dnd_drop_zone::<String, _>(Frame::NONE, |ui| {
-                let base_level = config.level(channel);
-                let mut level = base_level;
-                let mut tint = color(config.color(channel));
-                let muted = config.is_muted(channel);
+            let tint = color(config.color(channel));
+            let frame = Frame::new()
+                .inner_margin(egui::Margin::symmetric(9, 6))
+                .corner_radius(8)
+                .fill(super::theme::RAISED);
+            let (row, application) = ui.dnd_drop_zone::<DragItem, _>(frame, |ui| {
+                ui.set_width((width - 18.0).max(100.0));
                 ui.horizontal(|ui| {
-                    icons::label(ui, Icon::Channel(config.icon(channel)), tint);
+                    ui.spacing_mut().item_spacing.x = 5.0;
+                    ui.dnd_drag_source(
+                        ui.make_persistent_id("channel-handle"),
+                        DragItem::Channel(channel),
+                        |ui| {
+                            let (rect, _) =
+                                ui.allocate_exact_size(vec2(14.0, 26.0), egui::Sense::hover());
+                            for x in [-2.5, 2.5] {
+                                for y in [-5.0, 0.0, 5.0] {
+                                    ui.painter().circle_filled(
+                                        rect.center() + vec2(x, y),
+                                        1.0,
+                                        MUTED,
+                                    );
+                                }
+                            }
+                        },
+                    )
+                    .response
+                    .on_hover_text(lang.text("Перетягни, щоб змінити порядок", "Drag to reorder"));
                     let name = config.name(channel);
-                    let label = ui.add_sized(
-                        [74.0, 22.0],
-                        egui::Label::new(RichText::new(name).strong()).truncate(),
+                    let title = ui.add_sized(
+                        [75.0, 26.0],
+                        egui::Label::new(RichText::new(name).strong().color(tint)).truncate(),
                     );
-                    label.on_hover_text(name);
-                    let available = ui.available_width();
-                    if fader(ui, &mut level, tint, (available - 108.0).max(26.0)).changed()
-                        && level != base_level
-                    {
+                    title.on_hover_text(name);
+                    let mut level = config.level(channel);
+                    let width = (ui.available_width() - 143.0).max(24.0);
+                    if super::controls::fader(ui, &mut level, 100, tint, width).changed() {
                         action = Some(Action::Level(channel, level));
                     }
-                    let volume = format!("{level}%");
-                    ui.add_sized(
-                        [33.0, 18.0],
-                        egui::Label::new(RichText::new(volume).monospace().small()).truncate(),
-                    );
-                    let mute = if muted {
-                        lang.text("Увімкнути звук", "Unmute")
-                    } else {
-                        lang.text("Вимкнути звук", "Mute")
-                    };
-                    let icon = Icon::Speaker(muted);
-                    if icons::button(ui, icon, mute, muted, false).clicked() {
+                    ui.add_sized([39.0, 26.0], egui::Label::new(format!("{level}%")));
+                    let muted = config.is_muted(channel);
+                    if icons::button(
+                        ui,
+                        Icon::Speaker(muted),
+                        if muted {
+                            lang.text("Увімкнути звук", "Unmute")
+                        } else {
+                            lang.text("Вимкнути звук", "Mute")
+                        },
+                        muted,
+                        false,
+                    )
+                    .clicked()
+                    {
                         action = Some(Action::Mute(channel, !muted));
                     }
                     let active = !muted
@@ -73,44 +105,63 @@ pub(super) fn channels(
                             .iter()
                             .any(|app| app.channel == Some(channel) && app.playing);
                     meter(ui, active, tint, lang);
-                    if matches!(channel, Channel::Custom(_))
-                        && ui
-                            .small_button("⋯")
-                            .on_hover_text(lang.text("Редагувати канал", "Edit channel"))
+                    ui.menu_button("...", |ui| {
+                        if ui
+                            .add_enabled(
+                                index > 0,
+                                egui::Button::new(lang.text("Перемістити вище", "Move up")),
+                            )
                             .clicked()
-                    {
-                        action = Some(Action::Edit(channel));
-                    } else if channel.builtin_index().is_some()
-                        && ui.color_edit_button_srgba(&mut tint).changed()
-                    {
-                        action = Some(Action::Color(channel, hex(tint)));
-                    }
+                        {
+                            action = Some(Action::Reorder(channel, order[index - 1]));
+                            ui.close();
+                        }
+                        if ui
+                            .add_enabled(
+                                index + 1 < order.len(),
+                                egui::Button::new(lang.text("Перемістити нижче", "Move down")),
+                            )
+                            .clicked()
+                        {
+                            action = Some(Action::Reorder(channel, order[index + 1]));
+                            ui.close();
+                        }
+                        if matches!(channel, Channel::Custom(_))
+                            && ui
+                                .button(lang.text("Редагувати канал", "Edit channel"))
+                                .clicked()
+                        {
+                            action = Some(Action::Edit(channel));
+                            ui.close();
+                        }
+                        ui.separator();
+                        let mut chosen = tint;
+                        if ui.color_edit_button_srgba(&mut chosen).changed() {
+                            action = Some(Action::Color(channel, hex(chosen)));
+                        }
+                    });
                 });
             });
-            row.response.on_hover_text(lang.text(
-                "Сюди можна перетягнути застосунок",
-                "Drop an application here",
-            ));
-            if let Some(key) = drop {
-                action = Some(Action::Route((*key).clone(), Some(channel)));
+            if let Some(payload) = application {
+                action = Some(match payload.as_ref() {
+                    DragItem::Channel(moved) => Action::Reorder(*moved, channel),
+                    DragItem::Application(key) => Action::Route(key.clone(), Some(channel)),
+                });
+            }
+            if matches!(
+                row.response.dnd_hover_payload::<DragItem>().as_deref(),
+                Some(DragItem::Channel(_))
+            ) {
+                ui.painter().hline(
+                    row.response.rect.x_range(),
+                    row.response.rect.top(),
+                    Stroke::new(2.0, super::theme::ACCENT),
+                );
             }
         });
-        ui.separator();
+        ui.add_space(4.0);
     }
     action
-}
-
-fn fader(ui: &mut Ui, level: &mut u8, tint: Color32, width: f32) -> Response {
-    ui.scope(|ui| {
-        ui.spacing_mut().slider_width = width;
-        ui.visuals_mut().selection.bg_fill = tint;
-        ui.add(
-            Slider::new(level, 0..=100)
-                .show_value(false)
-                .trailing_fill(true),
-        )
-    })
-    .inner
 }
 
 fn meter(ui: &mut Ui, active: bool, tint: Color32, lang: Language) {
@@ -151,27 +202,32 @@ pub(super) fn applications(
     let mut action = None;
     for stream in streams {
         let mut selected = stream.channel;
-        ui.horizontal_wrapped(|ui| {
-            ui.dnd_drag_source(
-                ui.make_persistent_id(("app-drag", &stream.key)),
-                stream.key.clone(),
-                |ui| {
-                    ui.label(format!("⠿  {}", stream.label));
-                },
-            )
-            .response
-            .on_hover_text(lang.text("Перетягни на канал", "Drag to a channel"));
-            ComboBox::from_id_salt(&stream.key)
-                .width(77.0)
-                .selected_text(selected.map_or(lang.text("Авто", "Auto"), |channel| {
-                    config.name(channel)
-                }))
-                .show_ui(ui, |ui| {
-                    ui.selectable_value(&mut selected, None, lang.text("Авто", "Auto"));
-                    for channel in config.channels() {
-                        ui.selectable_value(&mut selected, Some(channel), config.name(channel));
-                    }
-                });
+        ui.push_id(&stream.key, |ui| {
+            ui.horizontal(|ui| {
+                let available = ui.available_width();
+                ui.dnd_drag_source(
+                    ui.make_persistent_id("app-drag"),
+                    DragItem::Application(stream.key.clone()),
+                    |ui| {
+                        ui.add_sized(
+                            [available - 165.0, 29.0],
+                            egui::Label::new(format!("⠿  {}", stream.label)).truncate(),
+                        )
+                        .on_hover_text(&stream.label);
+                    },
+                );
+                ComboBox::from_id_salt("app-route")
+                    .width(140.0)
+                    .selected_text(selected.map_or(lang.text("Авто", "Auto"), |channel| {
+                        config.name(channel)
+                    }))
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(&mut selected, None, lang.text("Авто", "Auto"));
+                        for channel in config.channels() {
+                            ui.selectable_value(&mut selected, Some(channel), config.name(channel));
+                        }
+                    });
+            })
         });
         if selected != stream.channel {
             action = Some(Action::Route(stream.key.clone(), selected));
@@ -186,27 +242,76 @@ pub(super) fn split(
     streams: &[AppStream],
     lang: Language,
 ) -> Option<Action> {
-    if ui.available_width() < 710.0 {
-        let rows = card(ui, |ui| channels(ui, config, streams, lang)).inner;
-        ui.add_space(5.0);
-        return card(ui, |ui| applications(ui, config, streams, lang))
-            .inner
-            .or(rows);
+    let rows = card(ui, |ui| channels(ui, config, streams, lang)).inner;
+    ui.add_space(8.0);
+    card(ui, |ui| applications(ui, config, streams, lang))
+        .inner
+        .or(rows)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dropping_a_channel_uses_the_reorder_payload_without_losing_it_as_an_app() {
+        let context = egui::Context::default();
+        super::super::theme::configure(&context);
+        let config = Config::default();
+        let mut action = None;
+        let mut output = context.run_ui(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    vec2(900.0, 500.0),
+                )),
+                ..Default::default()
+            },
+            |ui| {
+                action = channels(ui, &config, &[], Language::Ukrainian);
+            },
+        );
+        output.textures_delta.clear();
+        assert!(action.is_none());
+        let text_position = |shape: &egui::Shape| -> Option<egui::Pos2> {
+            if let egui::Shape::Text(text) = shape
+                && text.galley.text() == "Chat"
+            {
+                return Some(text.visual_bounding_rect().center());
+            }
+            None
+        };
+        let target = output
+            .shapes
+            .iter()
+            .find_map(|shape| text_position(&shape.shape))
+            .expect("Chat row");
+        egui::DragAndDrop::set_payload(&context, DragItem::Channel(Channel::Game));
+        let mut output = context.run_ui(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    vec2(900.0, 500.0),
+                )),
+                events: vec![
+                    egui::Event::PointerMoved(target),
+                    egui::Event::PointerButton {
+                        pos: target,
+                        button: egui::PointerButton::Primary,
+                        pressed: false,
+                        modifiers: egui::Modifiers::NONE,
+                    },
+                ],
+                ..Default::default()
+            },
+            |ui| {
+                action = channels(ui, &config, &[], Language::Ukrainian);
+            },
+        );
+        output.textures_delta.clear();
+        assert!(matches!(
+            action,
+            Some(Action::Reorder(Channel::Game, Channel::Chat))
+        ));
     }
-    ui.horizontal_top(|ui| {
-        let width = ui.available_width() - ui.spacing().item_spacing.x;
-        let make_layout = || egui::Layout::top_down(egui::Align::Min);
-        let rows = ui
-            .allocate_ui_with_layout(vec2(width * 0.63, 0.0), make_layout(), |ui| {
-                card(ui, |ui| channels(ui, config, streams, lang)).inner
-            })
-            .inner;
-        let apps = ui
-            .allocate_ui_with_layout(vec2(width * 0.37, 0.0), make_layout(), |ui| {
-                card(ui, |ui| applications(ui, config, streams, lang)).inner
-            })
-            .inner;
-        apps.or(rows)
-    })
-    .inner
 }

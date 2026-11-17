@@ -20,6 +20,8 @@ impl Engine {
         let response = ui
             .scope(|ui| {
                 ui.spacing_mut().slider_width = ui.available_width();
+                ui.spacing_mut().interact_size.y = 20.0;
+                ui.spacing_mut().slider_rail_height = 4.0;
                 ui.add_enabled(
                     enabled,
                     Slider::new(&mut value, 0..=Sidetone::High as u8)

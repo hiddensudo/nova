@@ -2,6 +2,7 @@ mod engine;
 mod eq;
 mod eq_editor;
 mod layout;
+mod mixer;
 mod slider;
 mod theme;
 

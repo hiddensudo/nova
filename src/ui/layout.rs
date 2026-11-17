@@ -19,7 +19,11 @@ impl Engine {
                 ui.add_space(32.0);
                 ui.label(RichText::new("ENGINE").size(11.0).strong().color(MUTED));
                 ui.add_space(7.0);
-                for (page, label) in [(Page::Microphone, "Мікрофон"), (Page::Eq, "EQ")] {
+                for (page, label) in [
+                    (Page::Microphone, "Мікрофон"),
+                    (Page::Eq, "EQ"),
+                    (Page::Mixer, "Мікшер"),
+                ] {
                     let text = RichText::new(label).strong().color(if self.page == page {
                         ACCENT
                     } else {
@@ -44,6 +48,7 @@ impl Engine {
                     .auto_shrink([false, false])
                     .show(ui, |ui| match self.page {
                         Page::Microphone => self.microphone(ui),
+                        Page::Mixer => self.mixer.show(ui),
                         Page::Eq => {
                             let busy = self.mic_busy();
                             self.eq.show(ui, busy);

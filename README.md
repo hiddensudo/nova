@@ -54,3 +54,7 @@ For a Debian 12 build targeting glibc 2.36, use `docker build --target artifacts
 The **EQ** page reads the active curve and offers four local presets. Use `nova-control eq list|get|select|export|import` from the terminal. The importer accepts Nova Control JSON and the peaking-filter subset of Sonar parametric EQ JSON. The headset applies the curve directly and Nova Control verifies it by reading it back. [Firmware EQ format](https://github.com/loteran/Arctis-Sound-Manager/issues/146)
 
 The EQ editor changes frequency, gain and Q for each peaking filter. Preview applies the draft for the current session. Restore reapplies the curve captured when the editor opened. Use the save button or `nova-control eq save` to store the current device settings.
+
+## PipeWire mixer
+
+Enable the mixer in Nova Control to create Game, Media and Chat sinks. Play audio in an application to select its channel. Channel levels and app assignments are stored in the user's XDG configuration and reapplied on the next mixer start. Keep the window open or use `nova-control mixer run` in a terminal. Requires PipeWire's Pulse server and `pactl`.

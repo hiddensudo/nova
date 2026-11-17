@@ -8,7 +8,7 @@ use eframe::egui::{Context, Ui};
 
 use crate::device::{self, Operation, Sidetone};
 
-use super::eq::EqPage;
+use super::{eq::EqPage, mixer::MixerPage};
 
 const READ_INTERVAL: Duration = Duration::from_secs(3);
 
@@ -16,6 +16,7 @@ const READ_INTERVAL: Duration = Duration::from_secs(3);
 pub(super) struct Engine {
     pub(super) page: Page,
     pub(super) eq: EqPage,
+    pub(super) mixer: MixerPage,
     pub(super) level: Option<Sidetone>,
     pub(super) slider_selection: Option<SliderSelection>,
     pub(super) error: Option<String>,
@@ -29,6 +30,7 @@ pub(super) enum Page {
     #[default]
     Microphone,
     Eq,
+    Mixer,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -106,6 +108,7 @@ impl Engine {
 impl eframe::App for Engine {
     fn logic(&mut self, _ctx: &Context, _frame: &mut eframe::Frame) {
         self.eq.poll();
+        self.mixer.poll();
         let Some(request) = &self.request else {
             return;
         };

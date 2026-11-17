@@ -100,6 +100,14 @@ impl Editor {
         } else {
             self.curve.show(ui, &mut self.draft.bands, enabled)
         };
+        ui.label(
+            RichText::new(lang.text(
+                "Розрахункова крива · Гц / дБ",
+                "Calculated response · Hz / dB",
+            ))
+            .small()
+            .color(MUTED),
+        );
         let changes = ui
             .add_enabled_ui(enabled && self.comparison == Comparison::Draft, |ui| {
                 ui.horizontal_wrapped(|ui| {

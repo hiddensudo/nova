@@ -149,7 +149,14 @@ impl eframe::App for Engine {
                 let level = match action {
                     super::desktop::Action::Sidetone(level) => Some(level),
                     super::desktop::Action::Cycle => self
-                        .level
+                        .slider_selection
+                        .map(|selection| match selection {
+                            SliderSelection::Queued(level) | SliderSelection::Dragging(level) => {
+                                level
+                            }
+                        })
+                        .or_else(|| self.pending_level())
+                        .or(self.level)
                         .map(|current| Sidetone::ALL[(current as usize + 1) % Sidetone::ALL.len()]),
                     _ => None,
                 };

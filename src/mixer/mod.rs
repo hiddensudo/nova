@@ -25,6 +25,8 @@ pub use config::Config;
 pub struct AppStream {
     pub key: String,
     pub label: String,
+    pub icon_name: Option<String>,
+    pub binary: Option<String>,
     pub channel: Option<Channel>,
     pub playing: bool,
 }
@@ -43,10 +45,18 @@ fn streams(currents: &[Stream], config: &Config) -> Vec<AppStream> {
             let app = apps.entry(key).or_insert_with(|| AppStream {
                 key: key.into(),
                 label: stream.label().into(),
+                icon_name: stream.properties.get("application.icon_name").cloned(),
+                binary: stream.properties.get("application.process.binary").cloned(),
                 channel: config.routes.get(key).copied(),
                 playing: false,
             });
             app.playing |= stream.playing();
+            if app.icon_name.is_none() {
+                app.icon_name = stream.properties.get("application.icon_name").cloned();
+            }
+            if app.binary.is_none() {
+                app.binary = stream.properties.get("application.process.binary").cloned();
+            }
         }
     }
     apps.into_values().collect()
@@ -227,3 +237,6 @@ impl Controller {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests;

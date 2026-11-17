@@ -1,3 +1,5 @@
+mod app_icons;
+mod applications;
 mod battery;
 mod channel_dialog;
 mod chatmix;

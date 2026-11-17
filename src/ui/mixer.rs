@@ -24,6 +24,7 @@ pub(super) struct MixerPage {
     state: Option<Snapshot>,
     config: Config,
     dialog: Option<ChannelDialog>,
+    icons: super::app_icons::Icons,
     error: Option<String>,
 }
 
@@ -182,7 +183,8 @@ impl MixerPage {
             .state
             .as_ref()
             .map_or([].as_slice(), |state| state.streams.as_slice());
-        if let Some(action) = mixer_channels::split(ui, &self.config, active, lang) {
+        if let Some(action) = mixer_channels::split(ui, &self.config, active, &mut self.icons, lang)
+        {
             self.apply(action);
         }
         self.channel_dialog(ui, lang);

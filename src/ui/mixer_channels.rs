@@ -1,15 +1,16 @@
-use eframe::egui::{self, Color32, ComboBox, Frame, RichText, Stroke, Ui, vec2};
+use eframe::egui::{self, Color32, Frame, RichText, Stroke, Ui, vec2};
 
 use crate::mixer::{AppStream, Channel, Config};
 
 use super::{
+    app_icons::Icons,
     icons::{self, Icon},
     preferences::Language,
     theme::{BORDER, MUTED, card},
 };
 
 #[derive(Clone)]
-enum DragItem {
+pub(super) enum DragItem {
     Channel(Channel),
     Application(String),
 }
@@ -183,70 +184,20 @@ fn meter(ui: &mut Ui, active: bool, tint: Color32, lang: Language) {
     });
 }
 
-pub(super) fn applications(
-    ui: &mut Ui,
-    config: &Config,
-    streams: &[AppStream],
-    lang: Language,
-) -> Option<Action> {
-    ui.strong(lang.text("Застосунки", "Applications"));
-    if streams.is_empty() {
-        ui.label(
-            RichText::new(lang.text(
-                "Запусти звук у застосунку, щоб призначити канал.",
-                "Play audio in an application to assign its channel.",
-            ))
-            .color(MUTED),
-        );
-    }
-    let mut action = None;
-    for stream in streams {
-        let mut selected = stream.channel;
-        ui.push_id(&stream.key, |ui| {
-            ui.horizontal(|ui| {
-                let available = ui.available_width();
-                ui.dnd_drag_source(
-                    ui.make_persistent_id("app-drag"),
-                    DragItem::Application(stream.key.clone()),
-                    |ui| {
-                        ui.add_sized(
-                            [available - 165.0, 29.0],
-                            egui::Label::new(format!("⠿  {}", stream.label)).truncate(),
-                        )
-                        .on_hover_text(&stream.label);
-                    },
-                );
-                ComboBox::from_id_salt("app-route")
-                    .width(140.0)
-                    .selected_text(selected.map_or(lang.text("Авто", "Auto"), |channel| {
-                        config.name(channel)
-                    }))
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut selected, None, lang.text("Авто", "Auto"));
-                        for channel in config.channels() {
-                            ui.selectable_value(&mut selected, Some(channel), config.name(channel));
-                        }
-                    });
-            })
-        });
-        if selected != stream.channel {
-            action = Some(Action::Route(stream.key.clone(), selected));
-        }
-    }
-    action
-}
-
 pub(super) fn split(
     ui: &mut Ui,
     config: &Config,
     streams: &[AppStream],
+    icons: &mut Icons,
     lang: Language,
 ) -> Option<Action> {
     let rows = card(ui, |ui| channels(ui, config, streams, lang)).inner;
     ui.add_space(8.0);
-    card(ui, |ui| applications(ui, config, streams, lang))
-        .inner
-        .or(rows)
+    card(ui, |ui| {
+        super::applications::show(ui, config, streams, icons, lang)
+    })
+    .inner
+    .or(rows)
 }
 
 #[cfg(test)]

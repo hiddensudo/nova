@@ -57,6 +57,8 @@ Drag filters on the EQ graph or enter precise frequency, gain and Q values. A/B 
 
 ## PipeWire mixer
 
+Application rows show locally installed program icons when available, with a letter fallback for unknown applications.
+
 Enable the mixer to create Game, Media, Chat, and any custom sinks you configure. Assign active applications with the channel menu or by dragging them to a channel. Levels, mute state, order, colors and routes are stored in the XDG configuration. Run the app in the window or system tray, or use `nova-control mixer run` in a terminal. Requires PipeWire's Pulse server and `pactl`.
 
 Enable **Фізичне коліщатко ChatMix** (physical ChatMix dial) to balance any two channels, including Game and Media. Other channels keep their own levels. CLI commands include `nova-control mixer chatmix Game Media`, `nova-control mixer chatmix off` and `nova-control mixer dial`.

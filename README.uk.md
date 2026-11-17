@@ -63,4 +63,4 @@ nova-control eq import ~/nova-eq.json
 
 ## Налаштування пристрою
 
-Вкладка **Пристрій** показує заряд і стан заряджання, регулює рівень мікрофона, таймер автовимкнення та яскравість LED вимкненого мікрофона. Команди термінала `nova-control settings get`, `settings mic 6`, `settings sleep 30`, `settings led 2` і `settings save`.
+Вкладка **Пристрій** показує заряд і стан заряджання, регулює рівень мікрофона, таймер автовимкнення та яскравість LED вимкненого мікрофона. Команди термінала `nova-control settings get`, `nova-control settings mic 6`, `nova-control settings sleep 30`, `nova-control settings led 2` і `nova-control settings save`.

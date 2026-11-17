@@ -42,6 +42,9 @@ fn four_slider_levels_fit_without_a_refresh_button() {
         );
     }
     assert!(!labels.iter().any(|label| label == "Оновити"));
+    for tab in ["Мікрофон", "EQ", "Мікшер", "Пристрій"] {
+        assert!(labels.iter().any(|label| label == tab), "{labels:?}");
+    }
 }
 
 #[test]

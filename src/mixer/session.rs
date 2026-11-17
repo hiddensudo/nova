@@ -110,13 +110,15 @@ impl Session {
     }
 
     pub fn unroute(&mut self, stream: &Stream, sinks: &[Sink]) -> Result<(), String> {
-        self.managed.remove(&stream.index);
         let target = self
             .previous
-            .remove(&stream.index)
-            .filter(|name| sinks.iter().any(|sink| sink.name == *name))
-            .unwrap_or_else(|| self.output.name.clone());
-        pulse::call(&["move-sink-input", &stream.index.to_string(), &target]).map(|_| ())
+            .get(&stream.index)
+            .filter(|name| sinks.iter().any(|sink| sink.name == **name))
+            .unwrap_or(&self.output.name);
+        pulse::call(&["move-sink-input", &stream.index.to_string(), target])?;
+        self.previous.remove(&stream.index);
+        self.managed.remove(&stream.index);
+        Ok(())
     }
 }
 

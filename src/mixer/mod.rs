@@ -167,11 +167,10 @@ impl Controller {
             levels = pair.levels(levels, position);
         }
         if self.levels != Some(levels) {
+            // If any call fails, the next tick must reconcile all three volumes.
+            let previous = self.levels.take();
             for (channel, percent) in Channel::ALL.into_iter().zip(levels) {
-                if self
-                    .levels
-                    .is_none_or(|previous| previous[channel as usize] != percent)
-                {
+                if previous.is_none_or(|old| old[channel as usize] != percent) {
                     pulse::call(&["set-sink-volume", channel.sink(), &format!("{percent}%")])?;
                 }
             }

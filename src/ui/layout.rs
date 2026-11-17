@@ -1,4 +1,6 @@
-use eframe::egui::{self, Frame, Margin, RichText, Stroke, Ui};
+use eframe::egui::{self, Button, Frame, Margin, RichText, Stroke, Ui};
+
+use crate::device::Operation;
 
 use super::{
     engine::Engine,
@@ -56,6 +58,14 @@ impl Engine {
                 self.sidetone_slider(ui).labelled_by(heading.id);
                 ui.add_space(16.0);
                 self.status(ui);
+                ui.add_space(10.0);
+                if ui
+                    .add_enabled(self.can_save(), Button::new("Зберегти в гарнітурі"))
+                    .on_hover_text("Записати поточні налаштування в пам’ять Nova 7 Gen 2.")
+                    .clicked()
+                {
+                    self.submit(ui.ctx(), Operation::Save);
+                }
             });
     }
 
@@ -63,12 +73,22 @@ impl Engine {
         if let Some(level) = self.pending_level() {
             ui.horizontal(|ui| {
                 ui.spinner();
-                ui.label(RichText::new(format!("Застосовую {}…", level.label())).color(MUTED));
+                let message = if self.saving() {
+                    "Зберігаю в гарнітурі…".into()
+                } else {
+                    format!("Застосовую {}…", level.label())
+                };
+                ui.label(RichText::new(message).color(MUTED));
             });
         } else if let Some(error) = &self.error {
             ui.label(RichText::new(error).color(WARNING));
         } else if let Some(level) = self.level {
-            ui.label(RichText::new(format!("Поточний рівень · {}", level.label())).color(SUCCESS));
+            let message = if self.saved_level == Some(level) {
+                "Команду збереження прийнято"
+            } else {
+                "Поточний рівень"
+            };
+            ui.label(RichText::new(format!("{message} · {}", level.label())).color(SUCCESS));
         } else {
             ui.label(RichText::new("Зчитую рівень із донгла…").color(MUTED));
         }

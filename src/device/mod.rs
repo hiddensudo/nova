@@ -10,7 +10,8 @@ use usbfs::UsbPort;
 
 pub use protocol::{Operation, Sidetone};
 
-const REPORT_SIZE: usize = 64;
+// Report ID prefix for Linux hidraw plus the 64-byte USB payload.
+const REPORT_SIZE: usize = 65;
 
 pub fn detect() -> Result<String, String> {
     let (path, transport, availability) = match HidrawPort::find()? {
@@ -32,15 +33,21 @@ pub fn detect() -> Result<String, String> {
 }
 
 pub fn sidetone(operation: Operation) -> Result<Sidetone, String> {
+    with_device(|port| transact(port, operation, READ_TIMEOUT))
+}
+
+fn with_device<T>(
+    operation: impl FnOnce(&mut dyn HidReports) -> Result<T, String>,
+) -> Result<T, String> {
     match HidrawPort::find()? {
         Some(port) => {
             let file = port.open()?;
             file.try_lock().map_err(|error| {
                 format!("Донгл зайнятий або блокування недоступне. Спробуй ще раз. ({error})")
             })?;
-            transact(&mut Hidraw(file), operation, READ_TIMEOUT)
+            operation(&mut Hidraw(file))
         }
-        None => transact(&mut UsbPort::find()?.claim()?, operation, READ_TIMEOUT),
+        None => operation(&mut UsbPort::find()?.claim()?),
     }
 }
 

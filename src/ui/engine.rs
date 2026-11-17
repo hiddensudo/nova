@@ -15,6 +15,7 @@ pub(super) struct Engine {
     pub(super) level: Option<Sidetone>,
     pub(super) slider_selection: Option<SliderSelection>,
     pub(super) error: Option<String>,
+    pub(super) saved_level: Option<Sidetone>,
     request: Option<Request>,
     next_read: Option<Instant>,
 }
@@ -31,7 +32,10 @@ struct Request {
 }
 
 impl Engine {
-    fn submit(&mut self, ctx: &Context, operation: Operation) {
+    pub(super) fn submit(&mut self, ctx: &Context, operation: Operation) {
+        if matches!(operation, Operation::Set(_) | Operation::Save) {
+            self.saved_level = None;
+        }
         let (send, receive) = mpsc::channel();
         self.request = Some(Request {
             operation,
@@ -64,9 +68,21 @@ impl Engine {
             .then_some(Operation::Read)
     }
 
+    pub(super) fn can_save(&self) -> bool {
+        self.level.is_some() && self.request.is_none() && self.slider_selection.is_none()
+    }
+
+    pub(super) fn saving(&self) -> bool {
+        matches!(
+            self.request.as_ref().map(|r| r.operation),
+            Some(Operation::Save)
+        )
+    }
+
     pub(super) fn pending_level(&self) -> Option<Sidetone> {
         match self.request.as_ref()?.operation {
             Operation::Set(level) => Some(level),
+            Operation::Save => self.level,
             Operation::Read => None,
         }
     }
@@ -84,10 +100,16 @@ impl eframe::App for Engine {
                 Err("Запит до донгла перервався. Рівень буде зчитано повторно.".into())
             }
         };
+        let saving = self.saving();
         self.request = None;
         self.next_read = Some(Instant::now() + READ_INTERVAL);
         match result {
             Ok(level) => {
+                if saving {
+                    self.saved_level = Some(level);
+                } else if self.saved_level != Some(level) {
+                    self.saved_level = None;
+                }
                 self.level = Some(level);
                 self.error = None;
             }

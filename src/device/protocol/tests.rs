@@ -56,3 +56,21 @@ fn set_verifies_level_without_writing_persistent_settings() {
     set[1..3].copy_from_slice(&[SET_SIDETONE, 3]);
     assert_eq!(port.sent, [read, set, read]);
 }
+
+#[test]
+fn explicit_save_verifies_active_level_before_and_after_the_save_frame() {
+    let mut port = TestPort {
+        received: [vec![SETTINGS, 7, 2, 0], vec![SETTINGS, 7, 2, 0]].into(),
+        ..Default::default()
+    };
+    assert_eq!(
+        transact(&mut port, Operation::Save, READ_TIMEOUT),
+        Ok(Sidetone::Medium)
+    );
+    assert_eq!(
+        port.sent.iter().map(|frame| frame[1]).collect::<Vec<_>>(),
+        [SETTINGS, SAVE, SETTINGS]
+    );
+    assert_eq!(port.sent[1].len(), 65);
+    assert!(port.sent[1][2..].iter().all(|&byte| byte == 0));
+}

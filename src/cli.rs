@@ -9,6 +9,7 @@ const HELP: &str = "Nova Control — Arctis Nova 7 Wireless Gen 2\n\n\
     nova-control detect          знайти донгл без надсилання команд\n\
     nova-control sidetone get    зчитати поточний рівень\n\
     nova-control sidetone set <0|1|2|3>\n\n\
+    nova-control sidetone save   зберегти поточний рівень у гарнітурі\n\n\
     0 Off · 1 Low · 2 Medium · 3 High";
 
 pub fn run() -> ExitCode {
@@ -40,6 +41,7 @@ fn dispatch(args: &[&str]) -> Result<(), String> {
         [] | ["gui"] => return launch_gui(),
         ["detect"] => return device::detect().map(|port| println!("{port}")),
         ["sidetone", "get"] => Operation::Read,
+        ["sidetone", "save"] => Operation::Save,
         ["sidetone", "set", level] => Operation::Set(Sidetone::from_argument(level)?),
         _ => return Err(HELP.into()),
     };

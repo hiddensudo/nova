@@ -8,6 +8,8 @@ use super::{HidReports, REPORT_SIZE};
 
 const SETTINGS: u8 = 0x20;
 const SET_SIDETONE: u8 = 0x39;
+const SAVE: u8 = 0x09;
+const SAVE_SETTLE: Duration = Duration::from_millis(250);
 pub(super) const READ_TIMEOUT: Duration = Duration::from_millis(750);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -45,15 +47,27 @@ impl Sidetone {
 pub enum Operation {
     Read,
     Set(Sidetone),
+    Save,
 }
 
 pub(super) fn transact(
-    file: &mut impl HidReports,
+    file: &mut dyn HidReports,
     operation: Operation,
     timeout: Duration,
 ) -> Result<Sidetone, String> {
     match operation {
         Operation::Read => read_level(file, timeout),
+        Operation::Save => {
+            let expected = read_level(file, timeout)?;
+            thread::sleep(SAVE_SETTLE);
+            send(file, SAVE, 0)?;
+            thread::sleep(SAVE_SETTLE);
+            let actual = read_level(file, timeout)?;
+            if actual != expected {
+                return Err("Рівень Sidetone змінився під час збереження.".into());
+            }
+            Ok(actual)
+        }
         Operation::Set(desired) => {
             // Check that this collection answers the verified settings query before writing.
             read_level(file, timeout)?;
@@ -83,7 +97,7 @@ pub(super) fn transact(
     }
 }
 
-fn send(port: &mut impl HidReports, command: u8, value: u8) -> Result<(), String> {
+fn send(port: &mut dyn HidReports, command: u8, value: u8) -> Result<(), String> {
     let mut report = [0; REPORT_SIZE];
     // hidraw write includes the report ID (zero for an unnumbered report).
     report[1] = command;
@@ -97,7 +111,7 @@ fn send(port: &mut impl HidReports, command: u8, value: u8) -> Result<(), String
     }
 }
 
-fn read_level(port: &mut impl HidReports, timeout: Duration) -> Result<Sidetone, String> {
+fn read_level(port: &mut dyn HidReports, timeout: Duration) -> Result<Sidetone, String> {
     send(port, SETTINGS, 0)?;
     let deadline = Instant::now() + timeout;
     let mut reply = [0; REPORT_SIZE];

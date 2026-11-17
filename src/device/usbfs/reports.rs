@@ -66,7 +66,7 @@ impl HidReports for UsbConnection {
     ) -> io::Result<usize> {
         let mut transfer = EndpointTransfer {
             endpoint: INPUT_ENDPOINT,
-            length: reply.len() as u32,
+            length: (REPORT_SIZE - 1) as u32,
             timeout: timeout.as_millis().max(1) as u32,
             data: reply.as_mut_ptr().cast(),
         };

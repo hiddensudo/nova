@@ -2,7 +2,7 @@
 
 [Українська](README.uk.md)
 
-A native Rust application for SteelSeries Arctis Nova 7 Wireless Gen 2 (USB dongle `1038:227e`). The Engine panel controls the hardware Mic Sidetone levels Off, Low, Medium and High. It reads the current value automatically. Changes apply to the current headset session.
+A native Rust application for SteelSeries Arctis Nova 7 Wireless Gen 2 (USB dongle `1038:227e`). The Engine panel controls the hardware Mic Sidetone levels Off, Low, Medium and High. It reads the current value automatically. The slider previews the new level. Use **Зберегти в гарнітурі** (Save to headset) or `nova-control sidetone save` to commit the current device settings.
 
 ## Install or update
 

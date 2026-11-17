@@ -36,3 +36,17 @@ sudo udevadm control --reload-rules
 ```
 
 Після цього перепідключи донгл. Застосунок запускається від звичайного користувача.
+
+## Апаратний EQ
+
+Вкладка **EQ** показує активний профіль і перемикає чотири локальні пресети Flat, Bass Boost, Focus та Smiley. JSON-профілі Nova Control і сумісні пікові криві Sonar можна застосувати до EQ гарнітури. Частоти округлюються до 1 Гц, підсилення до 0,1 дБ, Q до 0,001. Ефекти Sonar поза параметричною кривою залишаються в Sonar.
+
+```sh
+nova-control eq list
+nova-control eq get
+nova-control eq select Focus
+nova-control eq export ~/nova-eq.json
+nova-control eq import ~/nova-eq.json
+```
+
+Зміни EQ перевіряються повторним читанням із донгла. Поточна крива лишається активною до наступної зміни або вимкнення. [Формат апаратного EQ Gen 2](https://github.com/loteran/Arctis-Sound-Manager/issues/146)

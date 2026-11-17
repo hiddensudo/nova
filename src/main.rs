@@ -1,4 +1,5 @@
 mod cli;
+mod cli_eq;
 mod device;
 #[cfg(feature = "gui")]
 mod ui;

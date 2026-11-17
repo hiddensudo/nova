@@ -10,6 +10,7 @@ const HELP: &str = "Nova Control — Arctis Nova 7 Wireless Gen 2\n\n\
     nova-control sidetone get    зчитати поточний рівень\n\
     nova-control sidetone set <0|1|2|3>\n\n\
     nova-control sidetone save   зберегти поточний рівень у гарнітурі\n\n\
+    nova-control eq list|get|select|import|export\n\n\
     0 Off · 1 Low · 2 Medium · 3 High";
 
 pub fn run() -> ExitCode {
@@ -39,6 +40,7 @@ fn dispatch(args: &[&str]) -> Result<(), String> {
             return Ok(());
         }
         [] | ["gui"] => return launch_gui(),
+        ["eq", rest @ ..] => return crate::cli_eq::dispatch(rest),
         ["detect"] => return device::detect().map(|port| println!("{port}")),
         ["sidetone", "get"] => Operation::Read,
         ["sidetone", "save"] => Operation::Save,

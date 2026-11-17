@@ -48,3 +48,7 @@ For a Debian 12 build targeting glibc 2.36, use `docker build --target artifacts
 `src/device/` holds the device protocol and USB transports. `src/ui/` holds the Engine, layout, slider and theme. `src/cli.rs` handles the terminal interface. Run `cargo test --locked` and `python3 -m unittest discover -s tests` for checks without opening a window.
 
 [Verified Sidetone protocol](https://github.com/Sapd/HeadsetControl/pull/560) · [Linux USB interface roles](https://lists.openwall.net/linux-kernel/2026/08/03/2425)
+
+## Hardware EQ
+
+The **EQ** page reads the active curve and offers four local presets. Use `nova-control eq list|get|select|export|import` from the terminal. The importer accepts Nova Control JSON and the peaking-filter subset of Sonar parametric EQ JSON. The headset applies the curve directly and Nova Control verifies it by reading it back. [Firmware EQ format](https://github.com/loteran/Arctis-Sound-Manager/issues/146)

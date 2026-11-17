@@ -3,7 +3,7 @@ use eframe::egui::{self, Button, Frame, Margin, RichText, Stroke, Ui};
 use crate::device::Operation;
 
 use super::{
-    engine::Engine,
+    engine::{Engine, Page},
     theme::{ACCENT, BACKGROUND, BORDER, CARD, MUTED, SIDEBAR, SUCCESS, WARNING},
 };
 
@@ -19,14 +19,22 @@ impl Engine {
                 ui.add_space(32.0);
                 ui.label(RichText::new("ENGINE").size(11.0).strong().color(MUTED));
                 ui.add_space(7.0);
-                Frame::new()
-                    .fill(CARD)
-                    .corner_radius(6)
-                    .inner_margin(Margin::same(10))
-                    .show(ui, |ui| {
-                        ui.set_width(ui.available_width());
-                        ui.label(RichText::new("Мікрофон").color(ACCENT).strong());
+                for (page, label) in [(Page::Microphone, "Мікрофон"), (Page::Eq, "EQ")] {
+                    let text = RichText::new(label).strong().color(if self.page == page {
+                        ACCENT
+                    } else {
+                        MUTED
                     });
+                    if ui
+                        .add_sized(
+                            [ui.available_width(), 30.0],
+                            Button::new(text).selected(self.page == page),
+                        )
+                        .clicked()
+                    {
+                        self.page = page;
+                    }
+                }
             });
 
         egui::CentralPanel::default()
@@ -34,8 +42,12 @@ impl Engine {
             .show(ui, |ui| {
                 egui::ScrollArea::vertical()
                     .auto_shrink([false, false])
-                    .show(ui, |ui| {
-                        self.microphone(ui);
+                    .show(ui, |ui| match self.page {
+                        Page::Microphone => self.microphone(ui),
+                        Page::Eq => {
+                            let busy = self.mic_busy();
+                            self.eq.show(ui, busy);
+                        }
                     });
             });
     }

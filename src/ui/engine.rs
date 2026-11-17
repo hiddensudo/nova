@@ -8,16 +8,27 @@ use eframe::egui::{Context, Ui};
 
 use crate::device::{self, Operation, Sidetone};
 
+use super::eq::EqPage;
+
 const READ_INTERVAL: Duration = Duration::from_secs(3);
 
 #[derive(Default)]
 pub(super) struct Engine {
+    pub(super) page: Page,
+    pub(super) eq: EqPage,
     pub(super) level: Option<Sidetone>,
     pub(super) slider_selection: Option<SliderSelection>,
     pub(super) error: Option<String>,
     pub(super) saved_level: Option<Sidetone>,
     request: Option<Request>,
     next_read: Option<Instant>,
+}
+
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+pub(super) enum Page {
+    #[default]
+    Microphone,
+    Eq,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -68,6 +79,10 @@ impl Engine {
             .then_some(Operation::Read)
     }
 
+    pub(super) fn mic_busy(&self) -> bool {
+        self.request.is_some()
+    }
+
     pub(super) fn can_save(&self) -> bool {
         self.level.is_some() && self.request.is_none() && self.slider_selection.is_none()
     }
@@ -90,6 +105,7 @@ impl Engine {
 
 impl eframe::App for Engine {
     fn logic(&mut self, _ctx: &Context, _frame: &mut eframe::Frame) {
+        self.eq.poll();
         let Some(request) = &self.request else {
             return;
         };
@@ -122,6 +138,9 @@ impl eframe::App for Engine {
 
     fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
         self.draw(ui);
+        if self.page != Page::Microphone || self.eq.busy() {
+            return;
+        }
         let now = Instant::now();
         if let Some(operation) = self.next_operation(now) {
             self.submit(ui.ctx(), operation);

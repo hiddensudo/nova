@@ -1,3 +1,4 @@
+pub mod eq;
 mod hidraw;
 mod protocol;
 mod usbfs;

@@ -98,10 +98,13 @@ pub(super) fn transact(
 }
 
 fn send(port: &mut dyn HidReports, command: u8, value: u8) -> Result<(), String> {
+    send_bytes(port, &[command, value])
+}
+
+pub(super) fn send_bytes(port: &mut dyn HidReports, body: &[u8]) -> Result<(), String> {
     let mut report = [0; REPORT_SIZE];
-    // hidraw write includes the report ID (zero for an unnumbered report).
-    report[1] = command;
-    report[2] = value;
+    let command = body[0];
+    report[1..1 + body.len()].copy_from_slice(body);
     loop {
         match port.write_report(&report) {
             Ok(()) => return Ok(()),
@@ -112,25 +115,34 @@ fn send(port: &mut dyn HidReports, command: u8, value: u8) -> Result<(), String>
 }
 
 fn read_level(port: &mut dyn HidReports, timeout: Duration) -> Result<Sidetone, String> {
-    send(port, SETTINGS, 0)?;
+    let reply = query(port, &[SETTINGS, 0], timeout)?;
+    decode_settings(&reply)?.ok_or_else(|| "Неочікувана відповідь Sidetone.".into())
+}
+
+pub(super) fn query(
+    port: &mut dyn HidReports,
+    body: &[u8],
+    timeout: Duration,
+) -> Result<Vec<u8>, String> {
+    send_bytes(port, body)?;
     let deadline = Instant::now() + timeout;
     let mut reply = [0; REPORT_SIZE];
 
     while let Some(remaining) = deadline.checked_duration_since(Instant::now()) {
         match port.read_report(&mut reply, remaining) {
             Ok(0) => return Err("З’єднання з донглом перервано.".into()),
-            Ok(size) => {
-                if let Some(level) = decode_settings(&reply[..size])? {
-                    return Ok(level);
-                }
-            }
+            Ok(size) if reply[0] == body[0] => return Ok(reply[..size].to_vec()),
+            Ok(_) => {}
             Err(error)
                 if matches!(error.kind(), ErrorKind::WouldBlock | ErrorKind::Interrupted) => {}
             Err(error) if error.kind() == ErrorKind::TimedOut => break,
             Err(error) => return Err(format!("Читання HID не вдалося ({error}).")),
         }
     }
-    Err("Донгл не відповів на запит Sidetone. Перевір, чи навушники ввімкнені та з’єднані через 2,4 ГГц.".into())
+    Err(format!(
+        "Донгл не відповів на запит 0x{:02x}. Перевір з’єднання через 2,4 ГГц.",
+        body[0]
+    ))
 }
 
 fn decode_settings(reply: &[u8]) -> Result<Option<Sidetone>, String> {

@@ -4,12 +4,15 @@ use eframe::egui::{self, Context, Ui};
 
 use crate::device::eq::{self, Profile};
 
+use super::eq_editor::{EditAction, Editor};
+
 #[derive(Default)]
 pub(super) struct EqPage {
     active: Option<Profile>,
     request: Option<mpsc::Receiver<Result<Profile, String>>>,
     error: Option<String>,
     path: String,
+    editor: Option<Editor>,
 }
 
 impl EqPage {
@@ -69,6 +72,16 @@ impl EqPage {
                     self.run(ui.ctx(), eq::current);
                 }
             });
+            if ui
+                .add_enabled(
+                    self.active.is_some() && self.editor.is_none(),
+                    egui::Button::new("Редагувати EQ"),
+                )
+                .clicked()
+                && let Some(active) = self.active.clone()
+            {
+                self.editor = Some(Editor::new(active));
+            }
             ui.add_space(12.0);
             ui.horizontal_wrapped(|ui| {
                 ui.add(
@@ -86,6 +99,19 @@ impl EqPage {
                 }
             });
         });
+
+        if let Some(editor) = &mut self.editor {
+            ui.separator();
+            let action = ui.add_enabled_ui(enabled, |ui| editor.show(ui)).inner;
+            match action {
+                Some(EditAction::Apply(profile)) => self.run(ui.ctx(), move || eq::apply(&profile)),
+                Some(EditAction::Save(profile)) => {
+                    self.run(ui.ctx(), move || eq::save(&eq::apply(&profile)?));
+                }
+                Some(EditAction::Close) => self.editor = None,
+                None => {}
+            }
+        }
     }
 
     pub(super) fn busy(&self) -> bool {

@@ -38,7 +38,8 @@ impl HidReports for UsbConnection {
             value: 0x0200,      // output report, no report ID
             index: CONTROL_INTERFACE,
             length: payload.len() as u16,
-            timeout: 750,
+            // The headset can be busy committing its onboard settings.
+            timeout: if report[1] == 0x09 { 3000 } else { 750 },
             data: payload.as_mut_ptr().cast(),
         };
         // Both the C-layout transfer and its buffer live for the synchronous ioctl.

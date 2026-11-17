@@ -57,7 +57,7 @@ impl Profile {
         }
     }
 
-    fn validate(&self) -> Result<(), String> {
+    pub fn validate(&self) -> Result<(), String> {
         if self.name.trim().is_empty()
             || self.name.len() > 32
             || !self.name.bytes().all(|b| b.is_ascii_graphic() || b == b' ')
@@ -103,6 +103,24 @@ pub fn apply(profile: &Profile) -> Result<Profile, String> {
                     "{error} Відновлення профілю не підтверджено. {restore}"
                 )),
             },
+        }
+    })
+}
+
+pub fn save(desired: &Profile) -> Result<Profile, String> {
+    desired.validate()?;
+    with_device(|port| {
+        if wire::read(port)? != *desired {
+            return Err(
+                "Активна крива змінилася. Застосуй потрібний профіль перед збереженням.".into(),
+            );
+        }
+        super::protocol::persist(port)?;
+        let actual = wire::read(port)?;
+        if actual == *desired {
+            Ok(actual)
+        } else {
+            Err("Після збереження гарнітура повернула іншу криву.".into())
         }
     })
 }

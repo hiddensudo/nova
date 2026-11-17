@@ -59,9 +59,7 @@ pub(super) fn transact(
         Operation::Read => read_level(file, timeout),
         Operation::Save => {
             let expected = read_level(file, timeout)?;
-            thread::sleep(SAVE_SETTLE);
-            send(file, SAVE, 0)?;
-            thread::sleep(SAVE_SETTLE);
+            persist(file)?;
             let actual = read_level(file, timeout)?;
             if actual != expected {
                 return Err("Рівень Sidetone змінився під час збереження.".into());
@@ -95,6 +93,13 @@ pub(super) fn transact(
             }
         }
     }
+}
+
+pub(super) fn persist(port: &mut dyn HidReports) -> Result<(), String> {
+    thread::sleep(SAVE_SETTLE);
+    send(port, SAVE, 0)?;
+    thread::sleep(SAVE_SETTLE);
+    Ok(())
 }
 
 fn send(port: &mut dyn HidReports, command: u8, value: u8) -> Result<(), String> {

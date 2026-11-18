@@ -63,7 +63,7 @@ fn send(message: &str) {
         let _ = Command::new("notify-send")
             .args([
                 "--app-name=Nova Control",
-                "--icon=audio-headphones",
+                "--icon=nova-control",
                 "--",
                 "Nova Control",
                 &message,

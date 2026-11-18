@@ -1,6 +1,7 @@
 mod app_icons;
 mod applications;
 mod battery;
+mod branding;
 mod channel_dialog;
 mod chatmix;
 mod controls;
@@ -35,6 +36,7 @@ pub fn run() -> eframe::Result {
     let options = eframe::NativeOptions {
         viewport: ViewportBuilder::default()
             .with_app_id("nova-control")
+            .with_icon(branding::window_icon())
             .with_inner_size([1000.0, 650.0])
             .with_min_inner_size([620.0, 420.0]),
         renderer: eframe::Renderer::Glow,

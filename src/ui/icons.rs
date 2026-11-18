@@ -36,7 +36,7 @@ pub(super) fn button(ui: &mut Ui, icon: Icon, label: &str, selected: bool, rail:
     });
     if selected || response.hovered() || response.has_focus() || matches!(icon, Icon::Logo) {
         let fill = if matches!(icon, Icon::Logo) {
-            ACCENT
+            Color32::BLACK
         } else if selected {
             SELECTED
         } else {
@@ -54,7 +54,7 @@ pub(super) fn button(ui: &mut Ui, icon: Icon, label: &str, selected: bool, rail:
         ui.painter().rect_filled(mark, 2, ACCENT);
     }
     let color = if matches!(icon, Icon::Logo) {
-        Color32::from_rgb(37, 21, 9)
+        Color32::WHITE
     } else if selected {
         ACCENT
     } else {
@@ -82,12 +82,7 @@ fn paint(painter: &Painter, center: Pos2, icon: Icon, color: Color32) {
         )
     };
     match icon {
-        Icon::Logo => {
-            for (index, height) in [4.0, 9.0, 14.0, 10.0, 5.0].into_iter().enumerate() {
-                let x = (index as f32 - 2.0) * 3.0;
-                line(x, -height / 2.0, x, height / 2.0);
-            }
-        }
+        Icon::Logo => super::branding::paint(painter, center),
         Icon::Overview => {
             for y in [-7.0, 1.0] {
                 for x in [-7.0, 1.0] {

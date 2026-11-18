@@ -21,7 +21,7 @@ RUNTIME_FILES = (
 SOURCE_FILES = (
     "Cargo.toml", "Cargo.lock", "AGENTS.md", "README.md", "README.uk.md",
     "Dockerfile", ".dockerignore", ".gitignore", ".github", "install.py", "packaging",
-    "scripts/build.py", "scripts/package.py", "scripts/notices.py", "tests", "src",
+    "scripts/build.py", "scripts/package.py", "scripts/notices.py", "scripts/render_icons.py", "tests", "src",
 )
 
 

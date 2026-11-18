@@ -45,6 +45,22 @@ def stage_file(destination: Path, data, mode: int) -> Path:
     return staged
 
 
+def install_icons(data_home: Path) -> None:
+    source = ROOT / "packaging/linux/icons"
+    if not source.is_dir():
+        raise ValueError("The bundle is missing its application icons.")
+    for icon in sorted(source.rglob("*")):
+        if not icon.is_file():
+            continue
+        destination = data_home / "icons" / icon.relative_to(source)
+        with icon.open("rb") as data:
+            staged = stage_file(destination, data, 0o644)
+        try:
+            os.replace(staged, destination)
+        finally:
+            staged.unlink(missing_ok=True)
+
+
 def install(binary: Path, bin_dir: Path, data_home: Path) -> tuple[Path, Path]:
     command = bin_dir / APP
     desktop = data_home / "applications" / f"{APP}.desktop"
@@ -59,6 +75,7 @@ def install(binary: Path, bin_dir: Path, data_home: Path) -> tuple[Path, Path]:
         validator = shutil.which("desktop-file-validate")
         if validator:
             subprocess.run([validator, str(new_entry)], check=True)
+        install_icons(data_home)
         # Keep a working executable at a stable path across upgrades.
         os.replace(new_command, command)
         os.replace(new_entry, desktop)

@@ -24,7 +24,11 @@ impl ksni::Tray for Tray {
     }
 
     fn icon_name(&self) -> String {
-        "audio-headphones".into()
+        "nova-control-symbolic".into()
+    }
+
+    fn icon_pixmap(&self) -> Vec<ksni::Icon> {
+        crate::ui::branding::tray_icons()
     }
 
     fn activate(&mut self, _x: i32, _y: i32) {

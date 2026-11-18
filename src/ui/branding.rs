@@ -1,6 +1,6 @@
 use std::sync::OnceLock;
 
-use eframe::egui::{self, IconData, Painter, Pos2, Rect, TextureHandle, vec2};
+use eframe::egui::{self, IconData, Painter, Pos2, Stroke, vec2};
 
 const LARGE: &[u8] =
     include_bytes!("../../packaging/linux/icons/hicolor/256x256/apps/nova-control.png");
@@ -49,31 +49,50 @@ pub(super) fn tray_icons() -> Vec<ksni::Icon> {
 }
 
 pub(super) fn paint(painter: &Painter, center: Pos2) {
-    let id = egui::Id::unique("nova-brand-texture");
-    let texture = painter
-        .ctx()
-        .data_mut(|data| data.get_temp::<TextureHandle>(id));
-    let texture = texture.unwrap_or_else(|| {
-        let icon = decode(PANEL);
-        let texture = painter.ctx().load_texture(
-            "nova-impulse",
-            egui::ColorImage::from_rgba_unmultiplied(
-                [icon.width as usize, icon.height as usize],
-                &icon.rgba,
-            ),
-            egui::TextureOptions::LINEAR,
-        );
-        painter
-            .ctx()
-            .data_mut(|data| data.insert_temp(id, texture.clone()));
-        texture
-    });
-    painter.image(
-        texture.id(),
-        Rect::from_center_size(center, vec2(30.0, 30.0)),
-        Rect::from_min_max(Pos2::ZERO, egui::pos2(1.0, 1.0)),
-        egui::Color32::WHITE,
-    );
+    // Vector paths retain the Impulse geometry at any display scale.
+    let star = [
+        (128., 76.),
+        (140., 116.),
+        (178., 128.),
+        (140., 140.),
+        (128., 180.),
+        (116., 140.),
+        (78., 128.),
+        (116., 116.),
+    ];
+    let left = [
+        (24., 126.),
+        (43., 126.),
+        (53., 136.),
+        (77., 110.),
+        (77., 78.),
+        (141., 28.),
+        (141., 40.),
+    ];
+    let right = [
+        (232., 126.),
+        (208., 126.),
+        (179., 155.),
+        (179., 178.),
+        (115., 228.),
+        (115., 216.),
+    ];
+    let stroke = Stroke::new(1.35, egui::Color32::WHITE);
+    for (path, closed) in [
+        (star.as_slice(), true),
+        (left.as_slice(), false),
+        (right.as_slice(), false),
+    ] {
+        let points = path
+            .iter()
+            .map(|&(x, y)| center + vec2(x - 128., y - 128.) * (40. / 256.))
+            .collect();
+        painter.add(if closed {
+            egui::Shape::closed_line(points, stroke)
+        } else {
+            egui::Shape::line(points, stroke)
+        });
+    }
 }
 
 #[cfg(test)]

@@ -20,7 +20,9 @@ pub(super) enum Icon {
 }
 
 pub(super) fn button(ui: &mut Ui, icon: Icon, label: &str, selected: bool, rail: bool) -> Response {
-    let size = if rail {
+    let size = if matches!(icon, Icon::Logo) {
+        vec2(40.0, 40.0)
+    } else if rail {
         vec2(38.0, 38.0)
     } else {
         vec2(32.0, 30.0)
@@ -34,14 +36,8 @@ pub(super) fn button(ui: &mut Ui, icon: Icon, label: &str, selected: bool, rail:
             label,
         )
     });
-    if selected || response.hovered() || response.has_focus() || matches!(icon, Icon::Logo) {
-        let fill = if matches!(icon, Icon::Logo) {
-            Color32::BLACK
-        } else if selected {
-            SELECTED
-        } else {
-            RAISED
-        };
+    if selected || response.hovered() || response.has_focus() {
+        let fill = if selected { SELECTED } else { RAISED };
         ui.painter().rect_filled(rect, 8, fill);
     }
     if response.has_focus() {

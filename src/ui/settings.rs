@@ -17,9 +17,20 @@ use super::{
     theme::{WARNING, card},
 };
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(super) enum Connection {
+    #[default]
+    Checking,
+    Connected,
+    HeadsetDisconnected,
+    DongleMissing,
+    ControlsUnavailable,
+}
+
 #[derive(Default)]
 pub(super) struct SettingsPage {
     state: Option<Settings>,
+    connection: Connection,
     request: Option<mpsc::Receiver<Result<Settings, String>>>,
     error: Option<String>,
     next_read: Option<Instant>,
@@ -56,20 +67,39 @@ impl SettingsPage {
         self.next_read =
             Some(Instant::now() + Duration::from_millis(if result.is_ok() { 350 } else { 1500 }));
         self.request = None;
-        self.writing = false;
+        let was_writing = std::mem::take(&mut self.writing);
+        let dongle_present = result.is_ok() || device::dongle_present();
+        self.update_status(result, dongle_present, was_writing, prefs);
+    }
+
+    fn update_status(
+        &mut self,
+        result: Result<Settings, String>,
+        dongle_present: bool,
+        was_writing: bool,
+        prefs: &Preferences,
+    ) {
         match result {
             Ok(state) => {
                 self.notices.observe(state, prefs);
+                self.connection = if state.connected {
+                    Connection::Connected
+                } else {
+                    Connection::HeadsetDisconnected
+                };
                 self.state = Some(state);
                 self.error = None;
             }
             Err(error) => {
-                let disconnected = !device::dongle_present();
-                if self.error.as_ref() != Some(&error) {
-                    self.notices.error(disconnected, &error, prefs);
-                }
-                if disconnected {
+                let disconnected = !dongle_present;
+                self.notices.error(disconnected, &error, prefs);
+                if disconnected || !was_writing {
                     self.state = None;
+                    self.connection = if disconnected {
+                        Connection::DongleMissing
+                    } else {
+                        Connection::ControlsUnavailable
+                    };
                 }
                 self.error = Some(error);
             }
@@ -88,8 +118,12 @@ impl SettingsPage {
         self.state
     }
 
-    pub fn failed(&self) -> bool {
-        self.error.is_some()
+    pub fn connection(&self) -> Connection {
+        self.connection
+    }
+
+    pub fn error(&self) -> Option<&str> {
+        self.error.as_deref()
     }
 
     pub fn refresh(&mut self, ctx: &Context) {
@@ -321,4 +355,59 @@ fn select(
             });
     });
     (selected != value).then_some(selected)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unavailable_controls_do_not_mean_the_headset_or_dongle_disconnected() {
+        let mut page = SettingsPage::default();
+        let prefs = Preferences {
+            errors: false,
+            disconnected: false,
+            ..Preferences::default()
+        };
+        let state = Settings {
+            connected: true,
+            battery: Some(71),
+            charging: settings::ChargeState::Discharging,
+            mic_volume: 7,
+            sleep_minutes: 30,
+            mute_led: 1,
+        };
+
+        page.update_status(Ok(state), true, false, &prefs);
+        assert_eq!(page.connection(), Connection::Connected);
+
+        page.update_status(
+            Err("Device or resource busy (os error 16)".into()),
+            true,
+            false,
+            &prefs,
+        );
+        assert_eq!(page.connection(), Connection::ControlsUnavailable);
+        assert!(page.data().is_none());
+        assert!(!page.enabled(false));
+
+        page.update_status(Ok(state), true, false, &prefs);
+        assert_eq!(page.connection(), Connection::Connected);
+        assert_eq!(page.data(), Some(state));
+        assert!(page.enabled(false));
+
+        page.update_status(
+            Ok(Settings {
+                connected: false,
+                ..state
+            }),
+            true,
+            false,
+            &prefs,
+        );
+        assert_eq!(page.connection(), Connection::HeadsetDisconnected);
+
+        page.update_status(Err("USB device gone".into()), false, false, &prefs);
+        assert_eq!(page.connection(), Connection::DongleMissing);
+    }
 }

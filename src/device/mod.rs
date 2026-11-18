@@ -25,7 +25,7 @@ pub fn detect() -> Result<String, String> {
         }
         None => {
             let port = UsbPort::find()?;
-            let availability = port.open_device().map(|_| ());
+            let availability = port.claim().map(|_| ());
             (port.path, "usbfs", availability)
         }
     };
@@ -38,7 +38,7 @@ pub fn detect() -> Result<String, String> {
 
 #[cfg(feature = "gui")]
 pub fn dongle_present() -> bool {
-    UsbPort::find().is_ok()
+    UsbPort::present()
 }
 
 pub fn sidetone(operation: Operation) -> Result<Sidetone, String> {

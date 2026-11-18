@@ -108,8 +108,10 @@ impl Engine {
 
     pub fn status_connection(&self, ui: &mut Ui, header: bool) {
         let lang = self.prefs.language;
-        let (label, color) = match self.settings.data() {
-            Some(state) if state.connected => (
+        use super::settings::Connection;
+
+        let (label, color) = match self.settings.connection() {
+            Connection::Connected => (
                 if header {
                     lang.text("Підключено", "Connected")
                 } else {
@@ -117,17 +119,28 @@ impl Engine {
                 },
                 SUCCESS,
             ),
-            Some(_) => (lang.text("Не підключено", "Disconnected"), WARNING),
-            None if self.settings.failed() => {
-                (lang.text("Немає зв’язку", "Not connected"), WARNING)
-            }
-            None => (lang.text("З’єднання…", "Connecting…"), MUTED),
+            Connection::HeadsetDisconnected => (
+                lang.text("Гарнітура від’єднана", "Headset disconnected"),
+                WARNING,
+            ),
+            Connection::DongleMissing => (
+                lang.text("Донгл від’єднано", "Dongle disconnected"),
+                WARNING,
+            ),
+            Connection::ControlsUnavailable => (
+                lang.text("Керування недоступне", "Controls unavailable"),
+                WARNING,
+            ),
+            Connection::Checking => (lang.text("З’єднання…", "Connecting…"), MUTED),
         };
         let dot = |ui: &mut Ui| {
             ui.colored_label(color, "●");
         };
         let text = |ui: &mut Ui| {
-            ui.label(RichText::new(label).small().color(MUTED));
+            let response = ui.label(RichText::new(label).small().color(MUTED));
+            if let Some(error) = self.settings.error() {
+                response.on_hover_text(error);
+            }
         };
         ui.horizontal(|ui| {
             if ui.layout().prefer_right_to_left() {

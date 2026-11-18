@@ -222,7 +222,7 @@ impl Engine {
         if let Some(operation) = self.next_operation(now) {
             self.submit(ctx, operation);
         } else if self.request.is_none() && self.slider_selection.is_none() {
-            if self.page == Page::Overview
+            if matches!(self.page, Page::Overview | Page::Eq)
                 && self.settings.data().is_some_and(|state| state.connected)
             {
                 self.eq.ensure_loaded(ctx);

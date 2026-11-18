@@ -1,4 +1,9 @@
-use std::{path::PathBuf, sync::mpsc, thread};
+use std::{
+    path::PathBuf,
+    sync::mpsc,
+    thread,
+    time::{Duration, Instant},
+};
 
 use eframe::egui::{self, Context, Ui};
 
@@ -15,6 +20,8 @@ pub(super) struct EqPage {
     active: Option<Profile>,
     request: Option<mpsc::Receiver<Result<Profile, String>>>,
     action: Option<EditAction>,
+    reading: bool,
+    retry_read_at: Option<Instant>,
     error: Option<String>,
     path: String,
     search: String,
@@ -36,13 +43,23 @@ impl EqPage {
         self.active.as_ref().map(|profile| profile.name.as_str())
     }
 
-    pub fn ensure_loaded(&mut self, ctx: &Context) -> bool {
-        if self.active.is_none() && self.error.is_none() && !self.busy() {
-            self.run(ctx, eq::current);
-            true
-        } else {
-            false
+    pub fn ensure_loaded(&mut self, ctx: &Context) {
+        if self.busy() {
+            return;
         }
+        let now = Instant::now();
+        if let Some(retry) = self.retry_read_at
+            && retry > now
+        {
+            ctx.request_repaint_after(retry - now);
+        } else if self.retry_read_at.is_some() || (self.active.is_none() && self.error.is_none()) {
+            self.read(ctx);
+        }
+    }
+
+    fn read(&mut self, ctx: &Context) {
+        self.run(ctx, eq::current);
+        self.reading = true;
     }
 
     fn run(
@@ -53,6 +70,7 @@ impl EqPage {
         let (tx, rx) = mpsc::channel();
         self.request = Some(rx);
         self.error = None;
+        self.retry_read_at = None;
         let ctx = ctx.clone();
         thread::spawn(move || {
             let _ = tx.send(task());
@@ -69,8 +87,11 @@ impl EqPage {
         };
         self.request = None;
         let action = self.action.take();
+        let was_reading = std::mem::take(&mut self.reading);
+        self.retry_read_at = None;
         match result {
             Ok(profile) => {
+                self.error = None;
                 if let (Some(action), Some(editor)) = (action, self.editor.as_mut()) {
                     editor.compared(&action, &profile);
                 } else {
@@ -79,19 +100,27 @@ impl EqPage {
                 }
                 self.active = Some(profile);
             }
-            Err(error) => self.error = Some(error),
+            Err(error) => {
+                if was_reading {
+                    self.retry_read_at = Some(Instant::now() + Duration::from_secs(3));
+                }
+                self.error = Some(error);
+            }
         }
     }
 
-    pub fn show(&mut self, ui: &mut Ui, prefs: &mut Preferences, device_busy: bool) {
+    pub fn show(
+        &mut self,
+        ui: &mut Ui,
+        prefs: &mut Preferences,
+        device_busy: bool,
+        control_error: Option<&str>,
+    ) {
         let lang = prefs.language;
-        if !device_busy {
-            self.ensure_loaded(ui.ctx());
-        }
-        if let Some(error) = &self.error {
+        if let Some(error) = control_error.or(self.error.as_deref()) {
             ui.colored_label(WARNING, error);
         }
-        let enabled = !self.busy() && !device_busy;
+        let enabled = !self.busy() && !device_busy && control_error.is_none();
         let mut panel_height = 330.0;
         ui.horizontal_top(|ui| {
             let width = ui.available_width();
@@ -110,10 +139,15 @@ impl EqPage {
                         } else if self.busy() || device_busy {
                             ui.spinner();
                         } else if ui
-                            .button(lang.text("Зчитати EQ гарнітури", "Read headset EQ"))
+                            .add_enabled(
+                                enabled,
+                                egui::Button::new(
+                                    lang.text("Зчитати EQ гарнітури", "Read headset EQ"),
+                                ),
+                            )
                             .clicked()
                         {
-                            self.run(ui.ctx(), eq::current);
+                            self.read(ui.ctx());
                         }
                     });
                     panel_height = panel.response.rect.height() - 26.0;
@@ -168,7 +202,7 @@ impl EqPage {
                     )
                     .clicked()
                 {
-                    self.run(ui.ctx(), eq::current);
+                    self.read(ui.ctx());
                 }
             });
         });
@@ -247,5 +281,39 @@ impl EqPage {
 
     pub fn busy(&self) -> bool {
         self.request.is_some()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_failed_reads_are_retried_and_success_clears_the_error() {
+        let mut page = EqPage::default();
+        let mut finish = |result: Result<Profile, String>, reading: bool| {
+            let (tx, rx) = mpsc::channel();
+            tx.send(result).unwrap();
+            page.request = Some(rx);
+            page.reading = reading;
+            page.poll();
+            (
+                page.retry_read_at,
+                page.error.clone(),
+                page.name().map(str::to_owned),
+            )
+        };
+        let (retry, error, _) = finish(Err("write failed".into()), false);
+        assert!(retry.is_none());
+        assert_eq!(error.as_deref(), Some("write failed"));
+
+        let (retry, error, _) = finish(Err("read failed".into()), true);
+        assert!(retry.is_some_and(|t| t > Instant::now()));
+        assert_eq!(error.as_deref(), Some("read failed"));
+
+        let (retry, error, name) = finish(Profile::preset("Flat"), true);
+        assert!(retry.is_none());
+        assert!(error.is_none());
+        assert_eq!(name.as_deref(), Some("Flat"));
     }
 }

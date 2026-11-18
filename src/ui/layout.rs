@@ -142,6 +142,7 @@ impl Engine {
                                 ui,
                                 &mut self.prefs,
                                 mic_busy || self.settings.writing(),
+                                self.settings.error(),
                             ),
                         }
                     });

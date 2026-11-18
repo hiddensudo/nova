@@ -34,7 +34,13 @@ impl UsbPort {
         }
     }
 
-    pub fn open_device(&self) -> Result<File, String> {
+    #[cfg(feature = "gui")]
+    pub fn present() -> bool {
+        fs::read_dir("/sys/bus/usb/devices")
+            .is_ok_and(|devices| devices.flatten().any(|entry| is_nova_dongle(&entry.path())))
+    }
+
+    fn open_device(&self) -> Result<File, String> {
         let mut file = OpenOptions::new().read(true).write(true)
             .custom_flags(libc::O_NOFOLLOW)
             .open(&self.path)
@@ -81,15 +87,7 @@ impl UsbPort {
 }
 
 fn find_port(device: &Path) -> Option<UsbPort> {
-    fn read(path: &Path, attribute: &str) -> Option<String> {
-        Some(
-            fs::read_to_string(path.join(attribute))
-                .ok()?
-                .trim()
-                .to_owned(),
-        )
-    }
-    if read(device, "idVendor")? != "1038" || read(device, "idProduct")? != "227e" {
+    if !is_nova_dongle(device) {
         return None;
     }
     let name = device.file_name()?.to_str()?;
@@ -106,4 +104,18 @@ fn find_port(device: &Path) -> Option<UsbPort> {
     Some(UsbPort {
         path: PathBuf::from(format!("/dev/bus/usb/{bus:03}/{address:03}")),
     })
+}
+
+fn read(path: &Path, attribute: &str) -> Option<String> {
+    Some(
+        fs::read_to_string(path.join(attribute))
+            .ok()?
+            .trim()
+            .to_owned(),
+    )
+}
+
+fn is_nova_dongle(device: &Path) -> bool {
+    read(device, "idVendor").as_deref() == Some("1038")
+        && read(device, "idProduct").as_deref() == Some("227e")
 }

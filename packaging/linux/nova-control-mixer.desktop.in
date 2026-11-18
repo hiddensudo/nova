@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Nova Control Mixer
+Name[uk]=Мікшер Nova Control
+Exec=@EXEC@ mixer background
+TryExec=@TRY_EXEC@
+Icon=nova-control
+Terminal=false

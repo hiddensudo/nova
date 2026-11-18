@@ -1,3 +1,4 @@
+pub mod background;
 mod channel;
 mod chatmix;
 mod config;
@@ -5,6 +6,8 @@ mod config_store;
 mod dial;
 mod pulse;
 mod session;
+
+use serde::{Deserialize, Serialize};
 
 use std::{
     env,
@@ -21,7 +24,7 @@ pub use channel::{Channel, ChannelIcon, default_color};
 pub use chatmix::Pair;
 pub use config::Config;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct AppStream {
     pub key: String,
     pub label: String,
@@ -31,7 +34,7 @@ pub struct AppStream {
     pub playing: bool,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Snapshot {
     pub config: Config,
     pub streams: Vec<AppStream>,
@@ -72,19 +75,32 @@ pub fn snapshot() -> Result<Snapshot, String> {
     })
 }
 
-pub fn run(
-    mut stop: impl FnMut() -> bool,
-    mut update: impl FnMut(Result<Snapshot, String>),
-) -> Result<(), String> {
-    let lock_dir = env::var_os("XDG_RUNTIME_DIR")
+fn runtime_dir() -> Result<PathBuf, String> {
+    let dir = env::var_os("XDG_RUNTIME_DIR")
         .map(PathBuf::from)
+        .filter(|path| path.is_absolute())
         .or_else(|| {
             config_store::path()
                 .ok()
                 .and_then(|path| path.parent().map(PathBuf::from))
         })
         .ok_or_else(|| "Немає каталогу стану мікшера.".to_owned())?;
-    fs::create_dir_all(&lock_dir).map_err(|error| error.to_string())?;
+    fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
+    Ok(dir)
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum RunMode {
+    Manual,
+    Remembered,
+}
+
+pub fn run(
+    mode: RunMode,
+    mut stop: impl FnMut() -> bool,
+    mut update: impl FnMut(Result<Snapshot, String>),
+) -> Result<(), String> {
+    let lock_dir = runtime_dir()?;
     let lock = OpenOptions::new()
         .read(true)
         .write(true)
@@ -102,12 +118,14 @@ pub fn run(
     while !stop() {
         let started = Instant::now();
         if started >= next_route {
-            match controller.tick() {
-                Ok(snapshot) => {
+            match controller.tick(mode) {
+                Ok(Some(snapshot)) => {
                     latest = Some(snapshot.clone());
                     update(Ok(snapshot));
                 }
+                Ok(None) => break,
                 Err(error) => {
+                    latest = None;
                     update(Err(error));
                 }
             }
@@ -146,7 +164,10 @@ struct Controller {
 }
 
 impl Controller {
-    fn tick(&mut self) -> Result<Snapshot, String> {
+    fn tick(&mut self, mode: RunMode) -> Result<Option<Snapshot>, String> {
+        if mode == RunMode::Remembered && !background::enabled()? {
+            return Ok(None);
+        }
         let config = Config::load()?;
         let mut sinks = pulse::json::<Vec<Sink>>("sinks")?;
         let Some(output) = sinks.iter().find(|sink| sink.is_nova()).cloned() else {
@@ -194,11 +215,11 @@ impl Controller {
                 }
             }
         }
-        Ok(Snapshot {
+        Ok(Some(Snapshot {
             streams: streams(&inputs, &config),
             config,
             dial: self.dial,
-        })
+        }))
     }
     fn apply_levels(&mut self) -> Result<(), String> {
         let levels: std::collections::BTreeMap<_, _> = self

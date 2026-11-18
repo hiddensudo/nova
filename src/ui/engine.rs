@@ -129,7 +129,7 @@ impl Engine {
 impl eframe::App for Engine {
     fn logic(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         self.eq.poll();
-        self.mixer.poll();
+        self.mixer.poll(ctx, self.page == Page::Mixer);
         self.settings.poll(&self.prefs);
         self.poll_sidetone();
         if let Some(desktop) = &mut self.desktop {

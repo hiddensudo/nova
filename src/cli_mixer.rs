@@ -11,13 +11,9 @@ extern "C" fn stop(_: libc::c_int) {
 pub(super) fn dispatch(args: &[&str]) -> Result<(), String> {
     match args {
         ["run"] => {
-            // The process owns these handlers during this foreground command.
-            unsafe {
-                libc::signal(libc::SIGINT, stop as *const () as libc::sighandler_t);
-                libc::signal(libc::SIGTERM, stop as *const () as libc::sighandler_t);
-            }
+            install_stop_handlers();
             let mut previous = None;
-            mixer::run(|| STOP.load(Ordering::Relaxed), |result| {
+            mixer::run(mixer::RunMode::Manual, || STOP.load(Ordering::Relaxed), |result| {
                 let message = match result {
                     Ok(state) => format!("Nova mixer · {} застосунків", state.streams.len()),
                     Err(error) => error,
@@ -27,6 +23,10 @@ pub(super) fn dispatch(args: &[&str]) -> Result<(), String> {
                     previous = Some(message);
                 }
             })
+        }
+        ["background"] => {
+            install_stop_handlers();
+            mixer::background::run(|| STOP.load(Ordering::Relaxed))
         }
         ["dial"] => {
             let [left, right] = crate::device::chatmix::position()?;
@@ -68,5 +68,13 @@ pub(super) fn dispatch(args: &[&str]) -> Result<(), String> {
         ["channel", "rename", channel, name] => Config::change(|config| config.rename_channel(config.parse(channel)?, name)),
         ["channel", "remove", name] => Config::change(|config| config.remove_channel(config.parse(name)?)),
         _ => Err("nova-control mixer run|list|route <app-key> <channel|auto>|volume <channel> <0–100>|chatmix <left> <right>|chatmix off|dial|channel list|channel add <name>|channel rename <channel> <name>|channel remove <channel>".into()),
+    }
+}
+
+fn install_stop_handlers() {
+    // The CLI process owns these handlers, so shutdown releases its audio modules.
+    unsafe {
+        libc::signal(libc::SIGINT, stop as *const () as libc::sighandler_t);
+        libc::signal(libc::SIGTERM, stop as *const () as libc::sighandler_t);
     }
 }

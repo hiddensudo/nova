@@ -59,7 +59,7 @@ Drag filters on the EQ graph or enter precise frequency, gain and Q values. A/B 
 
 Application rows show locally installed program icons when available, with a letter fallback for unknown applications.
 
-Enable the mixer to create Game, Media, Chat, and any custom sinks you configure. Assign active applications with the channel menu or by dragging them to a channel. Levels, mute state, order, colors and routes are stored in the XDG configuration. Run the app in the window or system tray, or use `nova-control mixer run` in a terminal. Requires PipeWire's Pulse server and `pactl`.
+Enable the mixer to create Game, Media, Chat, and any custom sinks you configure. Assign active applications with the channel menu or by dragging them to a channel. Levels, mute state, order, colors and routes are stored in the XDG configuration. The enabled state is saved. The installer registers a background mixer at desktop sign-in. It restores the saved settings when the headset becomes available and keeps running after the window closes. Choose **Disable mixer** to stop routing immediately and keep it off across sign-ins. `nova-control mixer run` remains available for manual foreground sessions. Requires PipeWire's Pulse server and `pactl`.
 
 Enable **Фізичне коліщатко ChatMix** (physical ChatMix dial) to balance any two channels, including Game and Media. Other channels keep their own levels. CLI commands include `nova-control mixer chatmix Game Media`, `nova-control mixer chatmix off` and `nova-control mixer dial`.
 
@@ -67,7 +67,7 @@ The microphone section in Mixer controls mic gain. The Device panel controls the
 
 ## Desktop integration
 
-Only one GUI instance runs per desktop session. Launching it again restores and focuses the existing window. Closing with X exits the application and stops its mixer; use the separate header button to minimize to the system tray.
+Only one GUI instance runs per desktop session. Launching it again restores and focuses the existing window. Closing with X exits the window process. Use the separate header button to minimize the window to the system tray.
 
 The monochrome Impulse icon is installed with the desktop entry and embedded in the window and tray fallback. In the sidebar, its transparent vector paths are drawn directly at the current display scale. Editable SVG sources and size-adjusted PNGs live in `packaging/linux/icons/`. The optional authoring command `python3 scripts/render_icons.py` regenerates PNGs with rsvg-convert; normal builds use the checked-in files.
 

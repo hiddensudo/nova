@@ -3,6 +3,7 @@ pub mod eq;
 mod hidraw;
 mod protocol;
 pub mod settings;
+mod transaction;
 mod usbfs;
 
 use std::{io, sync::Mutex, time::Duration};
@@ -49,6 +50,7 @@ fn with_device<T>(
     operation: impl FnOnce(&mut dyn HidReports) -> Result<T, String>,
 ) -> Result<T, String> {
     let _serial = USB_TRANSACTION.lock().map_err(|error| error.to_string())?;
+    let _process_lock = transaction::acquire(true)?;
     open_device(operation)
 }
 
@@ -56,6 +58,9 @@ fn try_with_device<T>(
     operation: impl FnOnce(&mut dyn HidReports) -> Result<T, String>,
 ) -> Result<Option<T>, String> {
     let Ok(_serial) = USB_TRANSACTION.try_lock() else {
+        return Ok(None);
+    };
+    let Some(_process_lock) = transaction::acquire(false)? else {
         return Ok(None);
     };
     open_device(operation).map(Some)

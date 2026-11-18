@@ -1,15 +1,15 @@
+use std::os::unix::process::CommandExt;
 use std::{
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-        mpsc,
-    },
-    thread::{self, JoinHandle},
+    fs,
+    path::PathBuf,
+    process::{Command, Stdio},
+    thread,
+    time::{Duration, Instant},
 };
 
 use eframe::egui::{self, Context, Ui};
 
-use crate::mixer::{self, Channel, Config, Snapshot};
+use crate::mixer::{Channel, Config, Snapshot, background};
 
 use super::{
     channel_dialog::{ChannelDialog, Interaction},
@@ -20,7 +20,10 @@ use super::{
 
 #[derive(Default)]
 pub(super) struct MixerPage {
-    worker: Option<Worker>,
+    enabled: bool,
+    status_path: Option<PathBuf>,
+    status_bytes: Option<Vec<u8>>,
+    next_poll: Option<Instant>,
     state: Option<Snapshot>,
     config: Config,
     dialog: Option<ChannelDialog>,
@@ -28,57 +31,62 @@ pub(super) struct MixerPage {
     error: Option<String>,
 }
 
-struct Worker {
-    stop: Arc<AtomicBool>,
-    task: Option<JoinHandle<()>>,
-    rx: mpsc::Receiver<Result<Snapshot, String>>,
-}
-
-impl Worker {
-    fn start(ctx: &Context) -> Self {
-        let stop = Arc::new(AtomicBool::new(false));
-        let signal = stop.clone();
-        let ctx = ctx.clone();
-        let (tx, rx) = mpsc::sync_channel(2);
-        let task = thread::spawn(move || {
-            let send = |result| {
-                if tx.try_send(result).is_ok() {
-                    ctx.request_repaint();
-                }
-            };
-            if let Err(error) = mixer::run(|| signal.load(Ordering::Relaxed), &send) {
-                send(Err(error));
-            }
-            ctx.request_repaint();
-        });
-        Self {
-            stop,
-            task: Some(task),
-            rx,
-        }
-    }
-}
-
-impl Drop for Worker {
-    fn drop(&mut self) {
-        self.stop.store(true, Ordering::Relaxed);
-        if let Some(task) = self.task.take() {
-            let _ = task.join();
-        }
-    }
-}
-
 impl MixerPage {
     pub fn new() -> Self {
+        let mut page = Self {
+            status_path: background::status_path().ok(),
+            ..Self::default()
+        };
         match Config::load() {
-            Ok(config) => Self {
-                config,
-                ..Self::default()
-            },
-            Err(error) => Self {
-                error: Some(error),
-                ..Self::default()
-            },
+            Ok(config) => page.config = config,
+            Err(error) => page.error = Some(error),
+        }
+        match background::enabled() {
+            Ok(enabled) => {
+                page.enabled = enabled;
+                if enabled {
+                    page.start_background();
+                }
+            }
+            Err(error) => page.error = Some(error),
+        }
+        page
+    }
+
+    fn start_background(&mut self) {
+        let child = std::env::current_exe().and_then(|binary| {
+            Command::new(binary)
+                .args(["mixer", "background"])
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .process_group(0)
+                .spawn()
+        });
+        match child {
+            Ok(mut child) => {
+                // Reap duplicate launches while letting the session process
+                // keep running after the window closes.
+                thread::spawn(move || {
+                    let _ = child.wait();
+                });
+            }
+            Err(error) => self.error = Some(error.to_string()),
+        }
+    }
+
+    fn set_enabled(&mut self, enabled: bool) {
+        if let Err(error) = background::set_enabled(enabled) {
+            self.error = Some(error);
+            return;
+        }
+        self.enabled = enabled;
+        self.error = None;
+        self.state = None;
+        self.status_bytes = None;
+        self.next_poll = None;
+        if enabled {
+            self.start_background();
         }
     }
 
@@ -105,53 +113,64 @@ impl MixerPage {
                 ui.label(format!("{percent}%"));
             });
         }
-        if self.worker.is_none() {
+        if !self.enabled {
             ui.label(egui::RichText::new(lang.text("Мікшер вимкнено", "Mixer off")).color(MUTED));
         }
     }
 
-    pub(super) fn poll(&mut self) {
-        let Some(worker) = &self.worker else { return };
-        while let Ok(result) = worker.rx.try_recv() {
-            match result {
-                Ok(mut state) => {
-                    if state.config.revision >= self.config.revision {
-                        self.config = state.config.clone();
-                    }
-                    for stream in &mut state.streams {
-                        stream.channel = self.config.routes.get(&stream.key).copied();
-                    }
-                    self.state = Some(state);
-                    self.error = None;
-                }
-                Err(error) => {
-                    self.error = Some(error);
-                    self.state = None;
-                }
-            }
+    pub(super) fn poll(&mut self, ctx: &Context, show_dial: bool) {
+        if !self.enabled {
+            return;
         }
-        if worker.task.as_ref().is_some_and(JoinHandle::is_finished) {
-            self.worker = None;
+        let now = Instant::now();
+        if let Some(deadline) = self.next_poll.filter(|deadline| *deadline > now) {
+            ctx.request_repaint_after(deadline - now);
+            return;
+        }
+        let interval = Duration::from_millis(if show_dial { 25 } else { 350 });
+        self.next_poll = Some(now + interval);
+        ctx.request_repaint_after(interval);
+        let bytes = self
+            .status_path
+            .as_ref()
+            .and_then(|path| fs::read(path).ok());
+        if bytes == self.status_bytes {
+            return;
+        }
+        self.status_bytes = bytes;
+        let status = self
+            .status_bytes
+            .as_deref()
+            .and_then(|bytes| serde_json::from_slice::<Result<Snapshot, String>>(bytes).ok());
+        match status {
+            Some(Ok(mut state)) => {
+                if state.config.revision >= self.config.revision {
+                    self.config = state.config.clone();
+                }
+                for stream in &mut state.streams {
+                    stream.channel = self.config.routes.get(&stream.key).copied();
+                }
+                self.state = Some(state);
+                self.error = None;
+            }
+            Some(Err(error)) => {
+                self.error = Some(error);
+                self.state = None;
+            }
+            None => self.state = None,
         }
     }
 
     pub fn show(&mut self, ui: &mut Ui, lang: Language) {
         ui.horizontal_wrapped(|ui| {
-            if self.worker.is_none() {
-                if ui
-                    .button(lang.text("Увімкнути мікшер", "Enable mixer"))
-                    .clicked()
-                {
-                    self.error = None;
-                    self.worker = Some(Worker::start(ui.ctx()));
-                }
-            } else if ui
-                .button(lang.text("Вимкнути мікшер", "Disable mixer"))
-                .clicked()
-            {
-                self.worker = None;
-                self.state = None;
-                self.error = None;
+            let enabled = self.enabled;
+            let label = if enabled {
+                lang.text("Вимкнути мікшер", "Disable mixer")
+            } else {
+                lang.text("Увімкнути мікшер", "Enable mixer")
+            };
+            if ui.button(label).clicked() {
+                self.set_enabled(!enabled);
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui
@@ -164,7 +183,7 @@ impl MixerPage {
         });
         if let Some(error) = &self.error {
             ui.colored_label(WARNING, error);
-        } else if self.state.is_none() && self.worker.is_some() {
+        } else if self.state.is_none() && self.enabled {
             ui.spinner();
         }
         let dial = self.state.as_ref().and_then(|state| state.dial);

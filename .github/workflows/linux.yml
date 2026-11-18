@@ -31,9 +31,10 @@ jobs:
           if [[ "$GITHUB_REF_TYPE" == tag ]]; then
             test "$GITHUB_REF_NAME" = "v${version#nova-control }"
           fi
-          XDG_DATA_HOME="$smoke/share" python3 install.py --bin-dir "$smoke/bin"
+          XDG_CONFIG_HOME="$smoke/config" XDG_DATA_HOME="$smoke/share" python3 install.py --bin-dir "$smoke/bin"
           test "$("$smoke/bin/nova-control" --version)" = "$version"
           test -s "$smoke/share/applications/nova-control.desktop"
+          test -s "$smoke/config/autostart/nova-control-mixer.desktop"
       - uses: actions/upload-artifact@v4
         with:
           name: nova-control-linux-x86_64

@@ -14,12 +14,15 @@ class InstallTest(unittest.TestCase):
             binary.write_bytes(b"first version")
             bin_dir = root / "local bin"
             data_home = root / "shared data"
+            config_home = root / "config data"
 
-            command, desktop = install(binary, bin_dir, data_home)
+            command, desktop = install(binary, bin_dir, data_home, config_home)
             entry = desktop.read_text(encoding="utf-8")
             self.assertIn(f'Exec="{command}" gui\n', entry)
             self.assertIn(f"TryExec={command}\n", entry)
             self.assertIn("Icon=nova-control\n", entry)
+            autostart = config_home / "autostart/nova-control-mixer.desktop"
+            self.assertIn(f'Exec="{command}" mixer background\n', autostart.read_text())
             icons = data_home / "icons/hicolor"
             for size in (16, 22, 24, 32, 48, 64, 128, 256, 512):
                 self.assertTrue((icons / f"{size}x{size}/apps/nova-control.png").is_file())
@@ -33,7 +36,7 @@ class InstallTest(unittest.TestCase):
 
             updated = root / "replacement"
             updated.write_bytes(b"second version")
-            self.assertEqual(install(updated, bin_dir, data_home), (command, desktop))
+            self.assertEqual(install(updated, bin_dir, data_home, config_home), (command, desktop))
             binary.unlink()
             updated.unlink()
             self.assertEqual(desktop.read_text(encoding="utf-8"), entry)

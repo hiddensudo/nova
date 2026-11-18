@@ -29,6 +29,11 @@ def desktop_data_home() -> Path:
     return configured if configured.is_absolute() else Path.home() / ".local/share"
 
 
+def desktop_config_home() -> Path:
+    configured = Path(os.environ.get("XDG_CONFIG_HOME", ""))
+    return configured if configured.is_absolute() else Path.home() / ".config"
+
+
 def stage_file(destination: Path, data, mode: int) -> Path:
     destination.parent.mkdir(parents=True, exist_ok=True)
     file = tempfile.NamedTemporaryFile(
@@ -61,28 +66,38 @@ def install_icons(data_home: Path) -> None:
             staged.unlink(missing_ok=True)
 
 
-def install(binary: Path, bin_dir: Path, data_home: Path) -> tuple[Path, Path]:
+def desktop_entry(template: str, command: Path) -> BytesIO:
+    text = (ROOT / "packaging/linux" / template).read_text(encoding="utf-8")
+    entry = text.replace("@EXEC@", desktop_exec(command)).replace("@TRY_EXEC@", desktop_string(str(command)))
+    return BytesIO(entry.encode("utf-8"))
+
+
+def install(binary: Path, bin_dir: Path, data_home: Path, config_home: Path) -> tuple[Path, Path]:
     command = bin_dir / APP
     desktop = data_home / "applications" / f"{APP}.desktop"
-    template = (ROOT / "packaging/linux/nova-control.desktop.in").read_text(encoding="utf-8")
-    entry = template.replace("@EXEC@", desktop_exec(command)).replace("@TRY_EXEC@", desktop_string(str(command)))
+    autostart = config_home / "autostart" / "nova-control-mixer.desktop"
 
     with binary.open("rb") as data:
         new_command = stage_file(command, data, 0o755)
-    new_entry = None
+    entries = {}
     try:
-        new_entry = stage_file(desktop, BytesIO(entry.encode("utf-8")), 0o644)
+        entries[desktop] = stage_file(desktop, desktop_entry("nova-control.desktop.in", command), 0o644)
+        entries[autostart] = stage_file(
+            autostart, desktop_entry("nova-control-mixer.desktop.in", command), 0o644
+        )
         validator = shutil.which("desktop-file-validate")
         if validator:
-            subprocess.run([validator, str(new_entry)], check=True)
+            for staged in entries.values():
+                subprocess.run([validator, str(staged)], check=True)
         install_icons(data_home)
         # Keep a working executable at a stable path across upgrades.
         os.replace(new_command, command)
-        os.replace(new_entry, desktop)
+        for destination, staged in entries.items():
+            os.replace(staged, destination)
     finally:
         new_command.unlink(missing_ok=True)
-        if new_entry is not None:
-            new_entry.unlink(missing_ok=True)
+        for staged in entries.values():
+            staged.unlink(missing_ok=True)
     return command, desktop
 
 
@@ -100,7 +115,7 @@ def main() -> None:
         else:
             binary = build_release()
         version = binary_version(binary)
-        command, desktop = install(binary, args.bin_dir.expanduser().absolute(), desktop_data_home())
+        command, desktop = install(binary, args.bin_dir.expanduser().absolute(), desktop_data_home(), desktop_config_home())
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
         parser.exit(1, f"Installation failed: {error}\n")
     print(f"Nova Control {version}: {command}")

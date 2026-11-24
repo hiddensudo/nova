@@ -232,6 +232,7 @@ impl EqPage {
         let mut choose = None;
         let mut favorite_change = false;
         let mut visible = false;
+        let name_width = (ui.available_width() - 48.0).max(1.0);
         egui::ScrollArea::vertical()
             .id_salt("presets-library")
             .max_height(265.0)
@@ -251,9 +252,8 @@ impl EqPage {
                             .is_ok_and(|profile| self.active.as_ref() == Some(profile));
                         let mut row = ui
                             .add_enabled_ui(enabled && preset.profile.is_ok(), |ui| {
-                                let width = (ui.available_width() - 30.0).max(1.0);
                                 ui.add_sized(
-                                    [width, ui.spacing().interact_size.y],
+                                    [name_width, ui.spacing().interact_size.y],
                                     egui::Button::new(&preset.title)
                                         .truncate()
                                         .selected(selected),

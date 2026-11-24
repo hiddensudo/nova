@@ -20,7 +20,7 @@ RUNTIME_FILES = (
 )
 SOURCE_FILES = (
     "Cargo.toml", "Cargo.lock", "AGENTS.md", "README.md", "README.uk.md",
-    "Dockerfile", ".dockerignore", ".gitignore", ".github", "install.py", "packaging",
+    "Dockerfile", ".dockerignore", ".gitignore", ".github", "install.py", "packaging", "docs",
     "scripts/build.py", "scripts/package.py", "scripts/notices.py", "scripts/render_icons.py", "tests", "src",
 )
 
@@ -75,7 +75,9 @@ def package(binary: Path, output: Path) -> None:
         with tarfile.open(binary_archive, "w:gz") as archive:
             archive.add(bundle, arcname=bundle_name)
         write_source(source_archive, name)
-        files = (binary_archive, source_archive)
+        standalone = stage / APP
+        shutil.copy2(bundle / "bin" / APP, standalone)
+        files = (binary_archive, source_archive, standalone)
         sums = stage / "SHA256SUMS"
         with sums.open("w", encoding="ascii") as checksums:
             for path in files:

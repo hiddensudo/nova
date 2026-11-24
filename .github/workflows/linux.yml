@@ -20,6 +20,10 @@ jobs:
           persist-credentials: false
       - name: Build and test in Debian 12
         run: docker build --target artifacts --output type=local,dest=dist .
+      - name: Check the standalone Docker export
+        run: |
+          docker build --target binary --output type=local,dest="$RUNNER_TEMP/nova-standalone" .
+          test "$("$RUNNER_TEMP/nova-standalone/nova-control" --version)" = "$(dist/nova-control --version)"
       - name: Check the extracted installation
         run: |
           (cd dist && sha256sum -c SHA256SUMS)
@@ -28,6 +32,8 @@ jobs:
           tar -xf dist/nova-control-*-linux-x86_64.tar.gz -C "$smoke"
           cd "$smoke"/nova-control-*-linux-x86_64
           version=$(bin/nova-control --version)
+          test "$("$GITHUB_WORKSPACE/dist/nova-control" --version)" = "$version"
+          cmp bin/nova-control "$GITHUB_WORKSPACE/dist/nova-control"
           if [[ "$GITHUB_REF_TYPE" == tag ]]; then
             test "$GITHUB_REF_NAME" = "v${version#nova-control }"
           fi

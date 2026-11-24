@@ -1,4 +1,7 @@
-# Nova Control
+<p align="center">
+  <img src="packaging/linux/icons/hicolor/256x256/apps/nova-control.png" width="128" height="128" alt="Іконка Nova Control">
+</p>
+<h1 align="center">Nova Control</h1>
 
 [English](README.md)
 
@@ -94,3 +97,13 @@ ChatMix зчитується в окремому потоці з цільови�
 ### Звук працює, а керування гарнітурою недоступне
 
 Керування використовує окремий USB-інтерфейс. Якщо його зайняв інший менеджер гарнітури, закрий його і перевір, чи працює його фоновий сервіс. Наприклад, Linux Arctis Manager може запускати `arctis-manager.service` навіть без відкритого вікна. Після звільнення інтерфейсу Nova Control автоматично відновлює читання. Вимикаючи інший менеджер, перевір, чи не використовуєш його віртуальні канали.
+
+
+## Окремий виконуваний файл
+
+```sh
+docker build --target binary --output type=local,dest=dist .
+./dist/nova-control
+```
+
+Збірка потребує Docker. Виконуваний файл запускається у звичайному графічному сеансі Linux із glibc 2.36+ без Rust чи Python. Для мікшера потрібні PipeWire Pulse і `pactl`. Англійська є мовою за замовчуванням. Українську можна вибрати в налаштуваннях. [Підтримка гарнітур](docs/headsets.md)

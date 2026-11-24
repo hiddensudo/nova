@@ -1,10 +1,24 @@
-# Nova Control
+<p align="center">
+  <img src="packaging/linux/icons/hicolor/256x256/apps/nova-control.png" width="128" height="128" alt="Nova Control Impulse icon">
+</p>
+<h1 align="center">Nova Control</h1>
+<p align="center"><strong>Hardware headset controls and per-app audio mixing for Linux.</strong><br>Rust · SteelSeries Arctis · PipeWire</p>
+<p align="center"><a href="#quick-start">Quick start</a> · <a href="#build-in-docker">Docker</a> · <a href="docs/headsets.md">Headset support</a> · <a href="README.uk.md">Українська</a></p>
 
-[Українська](README.uk.md)
+A native Rust application for SteelSeries Arctis Nova 7 Wireless Gen 2 (USB dongle `1038:227e`). The Overview shows connection, battery, active EQ, and quick actions. The microphone section in Mixer and header shortcut control the hardware Sidetone levels Off, Low, Medium and High. Nova Control reads the current value automatically and applies slider changes on release. Use **Save to headset** or `nova-control sidetone save` to commit the current device settings.
 
-A native Rust application for SteelSeries Arctis Nova 7 Wireless Gen 2 (USB dongle `1038:227e`). The Overview shows connection, battery, active EQ, and quick actions. The microphone section in Mixer and header shortcut control the hardware Sidetone levels Off, Low, Medium and High. Nova Control reads the current value automatically and applies slider changes on release. Use **Зберегти в гарнітурі** (Save to headset) or `nova-control sidetone save` to commit the current device settings.
+## Quick start
 
-## Install or update
+Download the standalone executable from [GitHub Releases](https://github.com/hiddensudo/nova/releases) or the latest successful [Linux build](https://github.com/hiddensudo/nova/actions/workflows/linux.yml). On Linux, run:
+
+```sh
+chmod +x nova-control
+./nova-control
+```
+
+The Debian 12 build requires glibc 2.36+ and a standard Linux graphical session with OpenGL. It runs without Rust, Python, or Docker installed. The mixer also needs PipeWire’s Pulse server and `pactl`. USB permissions may require the bundled udev rule.
+
+### Install desktop integration
 
 Download the Linux archive for your architecture and extract it. `BUILD.txt` lists the minimum glibc version for that particular build. Run the installer with Python 3.9 or later from the extracted folder.
 
@@ -36,14 +50,14 @@ The desktop app uses Wayland or X11 with OpenGL. If the local user lacks access 
 
 Levels `0` through `3` match the four slider positions. If the USB interface is busy, close the other headset manager and try again.
 
-## Build downloads
+## Build in Docker
 
 ```sh
-python3 scripts/package.py
-(cd dist && sha256sum -c SHA256SUMS)
+docker build --target binary --output type=local,dest=dist .
+./dist/nova-control
 ```
 
-For a Debian 12 build targeting glibc 2.36, use `docker build --target artifacts --output type=local,dest=dist .`. Both paths produce an installable Linux archive, a source archive and `SHA256SUMS`. The [GitHub Actions workflow](.github/workflows/linux.yml) builds downloadable artifacts and attaches them to a release when a matching `v<version>` tag is pushed.
+For release archives, checksums, and the same executable as a separate file, select `--target artifacts`. That target also runs the tests. `python3 scripts/package.py` produces the same layout from a local build. The [GitHub Actions workflow](.github/workflows/linux.yml) uploads the artifacts and publishes them on matching version tags.
 
 `src/device/` holds the device protocol and USB transports. `src/ui/` holds the Engine, layout, slider and theme. `src/cli.rs` handles the terminal interface. Run `cargo test --locked` and `python3 -m unittest discover -s tests` for checks without opening a window.
 
@@ -61,7 +75,7 @@ Application rows show locally installed program icons when available, with a let
 
 Enable the mixer to create Game, Media, Chat, and any custom sinks you configure. Assign active applications with the channel menu or by dragging them to a channel. Levels, mute state, order, colors and routes are stored in the XDG configuration. The enabled state is saved. The installer registers a background mixer at desktop sign-in. It restores the saved settings when the headset becomes available and keeps running after the window closes. Choose **Disable mixer** to stop routing immediately and keep it off across sign-ins. `nova-control mixer run` remains available for manual foreground sessions. Requires PipeWire's Pulse server and `pactl`.
 
-Enable **Фізичне коліщатко ChatMix** (physical ChatMix dial) to balance any two channels, including Game and Media. Other channels keep their own levels. CLI commands include `nova-control mixer chatmix Game Media`, `nova-control mixer chatmix off` and `nova-control mixer dial`.
+Enable **Physical ChatMix dial** to balance any two channels, including Game and Media. Other channels keep their own levels. CLI commands include `nova-control mixer chatmix Game Media`, `nova-control mixer chatmix off` and `nova-control mixer dial`.
 
 The microphone section in Mixer controls mic gain. The Device panel controls the inactivity timeout and mute LED brightness. These are also available under `nova-control settings`.
 
@@ -71,7 +85,7 @@ Only one GUI instance runs per desktop session. Launching it again restores and 
 
 The monochrome Impulse icon is installed with the desktop entry and embedded in the window and tray fallback. In the sidebar, its transparent vector paths are drawn directly at the current display scale. Editable SVG sources and size-adjusted PNGs live in `packaging/linux/icons/`. The optional authoring command `python3 scripts/render_icons.py` regenerates PNGs with rsvg-convert; normal builds use the checked-in files.
 
-Nova Control uses the StatusNotifierItem system tray where available. The tray menu can switch between the four Sidetone levels and reopen the last visible panel. The Device panel lets you choose Ukrainian or English and toggle desktop notification types independently. Notifications require the Linux notify-send command.
+Nova Control uses the StatusNotifierItem system tray where available. The tray menu can switch between the four Sidetone levels and reopen the last visible panel. The interface defaults to English. The Device panel lets you switch to Ukrainian and toggle desktop notification types independently. Notifications require the Linux notify-send command.
 
 Use **Assign global shortcut** in Device settings to register a Sidetone cycle shortcut. This requires a desktop backend for the XDG Global Shortcuts portal. The desktop may ask for approval or let you choose a key combination.
 

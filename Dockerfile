@@ -7,8 +7,16 @@ WORKDIR /source
 COPY . .
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/source/target,sharing=locked \
+    cargo build --release --locked && install -D -m 755 target/release/nova-control /out/nova-control
+
+FROM scratch AS binary
+COPY --from=build /out/nova-control /nova-control
+
+FROM build AS package
+RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,target=/source/target,sharing=locked \
     cargo test --locked && cargo test --locked --no-default-features && python3 -m unittest discover -s tests && \
-    python3 scripts/package.py --output /out
+    python3 scripts/package.py --binary /out/nova-control --output /artifacts
 
 FROM scratch AS artifacts
-COPY --from=build /out/ /
+COPY --from=package /artifacts/ /

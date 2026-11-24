@@ -26,6 +26,7 @@ pub(super) struct EqPage {
     path: String,
     search: String,
     only_favorites: bool,
+    library: Option<Vec<eq::catalog::Entry>>,
     editor: Option<Editor>,
 }
 
@@ -220,43 +221,77 @@ impl EqPage {
             &mut self.only_favorites,
             lang.text("Обране", "Favorites"),
         );
-        let needle = self.search.trim().to_ascii_lowercase();
-        let mut visible = false;
-        for preset in eq::PRESETS {
-            let favorite = prefs.favorites.contains(preset);
-            if !preset.to_ascii_lowercase().contains(&needle) || (self.only_favorites && !favorite)
-            {
-                continue;
-            }
-            visible = true;
-            ui.horizontal(|ui| {
-                let selected = self.name() == Some(preset);
-                if ui
-                    .add_enabled(enabled, egui::Button::new(preset).selected(selected))
-                    .clicked()
-                {
-                    self.run(ui.ctx(), move || eq::apply(&Profile::preset(preset)?));
-                }
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui
-                        .small_button(if favorite { "★" } else { "☆" })
-                        .on_hover_text(lang.text("Обране", "Favorites"))
-                        .clicked()
-                    {
-                        if favorite {
-                            prefs.favorites.remove(preset);
-                        } else {
-                            prefs.favorites.insert(preset.into());
-                        }
-                        if let Err(error) = prefs.save() {
-                            self.error = Some(error);
-                        }
-                    }
-                });
-            });
+        if ui
+            .small_button(lang.text("Перечитати каталог", "Reload library"))
+            .clicked()
+        {
+            self.library = None;
         }
+        let needle = self.search.trim().to_lowercase();
+        let library = self.library.get_or_insert_with(eq::catalog::load);
+        let mut choose = None;
+        let mut favorite_change = false;
+        let mut visible = false;
+        egui::ScrollArea::vertical()
+            .id_salt("presets-library")
+            .max_height(265.0)
+            .show(ui, |ui| {
+                for preset in library {
+                    let favorite = prefs.favorites.contains(&preset.key);
+                    if !preset.title.to_lowercase().contains(&needle)
+                        || (self.only_favorites && !favorite)
+                    {
+                        continue;
+                    }
+                    visible = true;
+                    ui.horizontal(|ui| {
+                        let selected = preset
+                            .profile
+                            .as_ref()
+                            .is_ok_and(|profile| self.active.as_ref() == Some(profile));
+                        let mut row = ui
+                            .add_enabled_ui(enabled && preset.profile.is_ok(), |ui| {
+                                let width = (ui.available_width() - 30.0).max(1.0);
+                                ui.add_sized(
+                                    [width, ui.spacing().interact_size.y],
+                                    egui::Button::new(&preset.title)
+                                        .truncate()
+                                        .selected(selected),
+                                )
+                            })
+                            .inner
+                            .on_hover_text(&preset.title);
+                        if let Err(error) = &preset.profile {
+                            row = row.on_disabled_hover_text(error);
+                        }
+                        if row.clicked()
+                            && let Ok(profile) = &preset.profile
+                        {
+                            choose = Some(profile.clone());
+                        }
+                        if ui
+                            .small_button(if favorite { "★" } else { "☆" })
+                            .on_hover_text(lang.text("Обране", "Favorites"))
+                            .clicked()
+                        {
+                            if favorite {
+                                prefs.favorites.remove(&preset.key);
+                            } else {
+                                prefs.favorites.insert(preset.key.clone());
+                            }
+                            favorite_change = true;
+                        }
+                    });
+                }
+            });
         if !visible {
             ui.label(lang.text("Нічого не знайдено", "No matches"));
+        }
+        if favorite_change && let Err(error) = prefs.save() {
+            self.error = Some(error);
+        }
+        if let Some(profile) = choose {
+            self.run(ui.ctx(), move || eq::apply(&profile));
         }
     }
 

@@ -1,3 +1,4 @@
+pub mod catalog;
 mod import;
 mod wire;
 

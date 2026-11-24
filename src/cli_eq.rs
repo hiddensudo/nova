@@ -1,11 +1,17 @@
 use std::path::Path;
 
-use crate::device::eq::{self, Profile};
+use crate::device::eq;
 
 pub(super) fn dispatch(args: &[&str]) -> Result<(), String> {
     let active = match args {
         ["list"] => {
-            println!("{}", eq::PRESETS.join("\n"));
+            for entry in eq::catalog::load() {
+                if entry.profile.is_ok() {
+                    println!("{}", entry.key);
+                } else {
+                    println!("{} (unsupported)", entry.key);
+                }
+            }
             return Ok(());
         }
         ["get"] => {
@@ -17,7 +23,7 @@ pub(super) fn dispatch(args: &[&str]) -> Result<(), String> {
         }
         ["save"] => eq::save(&eq::current()?)?,
         ["export", path] => return eq::to_file(Path::new(path), &eq::current()?),
-        ["select", name] => eq::apply(&Profile::preset(name)?)?,
+        ["select", name] => eq::apply(&eq::catalog::select(name)?)?,
         ["import", path] => eq::apply(&eq::from_file(Path::new(path))?)?,
         _ => {
             return Err(

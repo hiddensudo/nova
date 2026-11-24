@@ -1,19 +1,17 @@
-use std::{
-    collections::BTreeMap,
-    process::{Command, Stdio},
-};
+mod client;
+mod native;
 
-use serde::{Deserialize, de::DeserializeOwned};
+use std::collections::BTreeMap;
 
 use super::Channel;
+pub(super) use native::*;
 
 pub(super) const LOOPBACK_ID: &str = "nova-control.loopback";
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct Sink {
     pub index: u32,
     pub name: String,
-    #[serde(default)]
     properties: BTreeMap<String, String>,
 }
 
@@ -33,15 +31,15 @@ impl Sink {
     }
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[cfg_attr(test, derive(serde::Deserialize))]
+#[derive(Clone, Debug)]
 pub(super) struct Stream {
     pub index: u32,
     pub sink: u32,
-    #[serde(default)]
+    #[cfg_attr(test, serde(default))]
     corked: bool,
-    #[serde(default)]
+    #[cfg_attr(test, serde(default))]
     mute: bool,
-    #[serde(default)]
     pub properties: BTreeMap<String, String>,
 }
 
@@ -106,44 +104,6 @@ impl Module {
             _ => false,
         }
     }
-}
-
-pub(super) fn modules() -> Result<Vec<Module>, String> {
-    Ok(call(&["list", "short", "modules"])?
-        .lines()
-        .filter_map(|line| {
-            let mut columns = line.splitn(4, '\t');
-            Some(Module {
-                index: columns.next()?.parse().ok()?,
-                name: columns.next()?.into(),
-                argument: columns.next().unwrap_or_default().into(),
-            })
-        })
-        .collect())
-}
-
-pub(super) fn json<T: DeserializeOwned>(kind: &str) -> Result<T, String> {
-    serde_json::from_str(&call(&["-f", "json", "list", kind])?)
-        .map_err(|error| format!("pactl {kind}: {error}"))
-}
-
-pub(super) fn call(arguments: &[&str]) -> Result<String, String> {
-    let output = Command::new("pactl")
-        .args(arguments)
-        .env("LC_ALL", "C")
-        .stdin(Stdio::null())
-        .output()
-        .map_err(|error| format!("Could not run pactl: {error}"))?;
-    if !output.status.success() {
-        return Err(format!(
-            "pactl {}: {}",
-            arguments[0],
-            String::from_utf8_lossy(&output.stderr).trim()
-        ));
-    }
-    String::from_utf8(output.stdout)
-        .map(|s| s.trim().to_owned())
-        .map_err(|error| error.to_string())
 }
 
 #[cfg(test)]

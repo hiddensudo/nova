@@ -17,7 +17,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use pulse::{Sink, Stream};
+use pulse::Stream;
 use session::{Session, on_nova_channel};
 
 pub use channel::{Channel, ChannelIcon, default_color};
@@ -67,7 +67,7 @@ fn streams(currents: &[Stream], config: &Config) -> Vec<AppStream> {
 
 pub fn snapshot() -> Result<Snapshot, String> {
     let config = Config::load()?;
-    let inputs = pulse::json::<Vec<Stream>>("sink-inputs")?;
+    let inputs = pulse::streams()?;
     Ok(Snapshot {
         streams: streams(&inputs, &config),
         config,
@@ -168,7 +168,7 @@ impl Controller {
             return Ok(None);
         }
         let config = Config::load()?;
-        let mut sinks = pulse::json::<Vec<Sink>>("sinks")?;
+        let mut sinks = pulse::sinks()?;
         let Some(output) = sinks.iter().find(|sink| sink.is_nova()).cloned() else {
             self.session = None;
             self.dial = None;
@@ -194,7 +194,7 @@ impl Controller {
             drop(self.session.take());
             self.session = Some(Session::open(output, &channels)?);
             self.levels = None;
-            sinks = pulse::json::<Vec<Sink>>("sinks")?;
+            sinks = pulse::sinks()?;
         }
         self.config = config.clone();
         if self.pair != config.pair {
@@ -202,7 +202,7 @@ impl Controller {
             self.dial = None;
         }
         self.apply_levels()?;
-        let inputs = pulse::json::<Vec<Stream>>("sink-inputs")?;
+        let inputs = pulse::streams()?;
         let session = self.session.as_mut().expect("session initialized");
         session.retain_streams(&inputs);
         for input in &inputs {
@@ -246,10 +246,10 @@ impl Controller {
                 let last = previous.as_ref().and_then(|old| old.get(&channel)).copied();
                 let sink = channel.sink();
                 if last.is_none_or(|old| old.0 != level) {
-                    pulse::call(&["set-sink-volume", &sink, &format!("{level}%")])?;
+                    pulse::set_volume(&sink, level)?;
                 }
                 if last.is_none_or(|old| old.1 != muted) {
-                    pulse::call(&["set-sink-mute", &sink, if muted { "1" } else { "0" }])?;
+                    pulse::set_mute(&sink, muted)?;
                 }
             }
             self.levels = Some(levels);

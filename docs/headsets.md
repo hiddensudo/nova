@@ -14,3 +14,7 @@ Planned order after 7X Gen 2:
 3. Nova 5 and 5X, followed by Nova 3 Wireless and Nova Pro Wireless.
 
 [HeadsetControl device table and capabilities](https://github.com/Sapd/HeadsetControl/blob/master/lib/devices/steelseries_arctis_nova_7.hpp) · [Upstream Nova 7X Gen 2 ChatMix test](https://github.com/rdamron/rust-arctis-chatmix)
+
+## Develop without the headset
+
+Nova’s HID transport trait can replay synthetic responses in tests. The 7X probe test checks the exact status request and simulated center and endpoint reports. This is appropriate for parsers, ranges, timeouts and UI behavior. Treat synthetic fixtures as assumptions until an owner captures equivalent reports from a real dongle. A software mock cannot confirm where the headset routes Sidetone, whether a write persists, or which firmware accepts a command.

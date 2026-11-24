@@ -18,7 +18,7 @@ pub fn run(product: &str) -> Result<(), String> {
     };
     // Only the status query runs here. An experimental device can never
     // reach the Sidetone, EQ, settings or persist paths through this command.
-    let status = with_model(model, |port| decode(&chatmix::status(port, READ_TIMEOUT)?))?;
+    let status = with_model(model, read_status)?;
     let report = serde_json::json!({
         "model": model.name(),
         "usb_id": format!("{:04x}:{:04x}", Model::VENDOR, model.product()),
@@ -26,6 +26,10 @@ pub fn run(product: &str) -> Result<(), String> {
     });
     println!("{report:#}");
     Ok(())
+}
+
+fn read_status(port: &mut dyn super::HidReports) -> Result<Status, String> {
+    decode(&chatmix::status(port, READ_TIMEOUT)?)
 }
 
 fn decode(report: &[u8]) -> Result<Status, String> {
@@ -55,5 +59,45 @@ mod tests {
         assert_eq!(status.battery, None);
         assert_eq!(status.chatmix, None);
         assert!(decode(&[0xb0, 3]).is_err());
+    }
+
+    #[test]
+    fn simulated_7x_reports_are_read_without_configuration_writes() {
+        use super::super::{HidReports, REPORT_SIZE};
+        use std::{io, time::Duration};
+
+        struct SimulatedDongle {
+            packet: [u8; 6],
+            requested: bool,
+        }
+
+        impl HidReports for SimulatedDongle {
+            fn write_report(&mut self, command: &[u8; REPORT_SIZE]) -> io::Result<()> {
+                assert!(!self.requested);
+                assert_eq!(&command[..3], &[0, 0xb0, 0]);
+                self.requested = true;
+                Ok(())
+            }
+
+            fn read_report(
+                &mut self,
+                response: &mut [u8; REPORT_SIZE],
+                _: Duration,
+            ) -> io::Result<usize> {
+                assert!(self.requested);
+                response[..6].copy_from_slice(&self.packet);
+                Ok(6)
+            }
+        }
+
+        for position in [[0, 100], [100, 100], [100, 0]] {
+            let mut dongle = SimulatedDongle {
+                packet: [0xb0, 3, 67, 3, position[0], position[1]],
+                requested: false,
+            };
+            let state = read_status(&mut dongle).unwrap();
+            assert_eq!(state.battery, Some(67));
+            assert_eq!(state.chatmix, Some(position));
+        }
     }
 }

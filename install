@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+case "${1-}" in
+    '') enable_udev=false ;;
+    --udev) enable_udev=true ;;
+    -h|--help)
+        printf 'Usage: ./install [--udev]\nBuild Nova Control in Docker and install it for the current user.\nUse --udev to also install USB access rules with sudo.\n'
+        exit 0 ;;
+    *) printf 'Unknown option: %s\n' "$1" >&2; exit 2 ;;
+esac
+
+if [[ "$(id -u)" == 0 ]]; then
+    printf 'Run ./install as your desktop user. Use ./install --udev for USB access.\n' >&2
+    exit 1
+fi
+for command in docker python3; do
+    if ! command -v "$command" >/dev/null; then
+        printf '%s is required by this installer. See the Quick start section for the prebuilt executable.\n' "$command" >&2
+        exit 1
+    fi
+done
+if ! docker info >/dev/null 2>&1; then
+    printf 'Docker is not reachable. Start Docker and check that your user can run docker info.\n' >&2
+    exit 1
+fi
+
+root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+work="$(mktemp -d "${TMPDIR:-/tmp}/nova-install.XXXXXXXX")"
+builder="nova-${work##*.}"
+created=false
+cleanup() {
+    if "$created"; then
+        docker buildx rm "$builder" >/dev/null 2>&1 ||
+            printf 'Could not remove this build cache. Run: docker buildx rm %s\n' "$builder" >&2
+    fi
+    rm -rf -- "$work"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+docker buildx create --name "$builder" --driver docker-container >/dev/null
+created=true
+docker buildx build --builder "$builder" --target binary --output "type=local,dest=$work" "$root"
+python3 "$root/install.py" --binary "$work/nova-control"
+
+if "$enable_udev"; then
+    sudo install -m 0644 "$root/packaging/linux/70-nova-control.rules" /etc/udev/rules.d/70-nova-control.rules
+    sudo udevadm control --reload-rules
+    printf 'Unplug and reconnect the USB dongle to apply the access rule.\n'
+fi
+printf 'Open Nova Control from your app menu when you are ready.\n'

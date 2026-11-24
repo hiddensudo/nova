@@ -7,6 +7,8 @@
 
 For a 7X test report, run the probe with the headset on and again with the wheel centered and at each end. Include the USB ID and the reported values. The first GUI milestone is status, battery and ChatMix on real hardware. The settings and EQ paths require separate verification per device.
 
+[Submit a headset compatibility report](https://github.com/hiddensudo/nova/issues/new?template=headset.yml)
+
 Planned order after 7X Gen 2:
 
 1. Original Nova 7 and 7X. Verify the charging flags and the discrete battery format on earlier firmware.

@@ -22,6 +22,10 @@ jobs:
         run: docker build --target artifacts --output type=local,dest=dist .
       - name: Check the standalone Docker export
         run: |
+          if ! ldconfig -p | grep -q 'libpulse.so.0'; then
+            sudo apt-get update
+            sudo apt-get install -y libpulse0
+          fi
           docker build --target binary --output type=local,dest="$RUNNER_TEMP/nova-standalone" .
           test "$("$RUNNER_TEMP/nova-standalone/nova-control" --version)" = "$(dist/nova-control --version)"
       - name: Check the extracted installation

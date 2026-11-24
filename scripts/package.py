@@ -16,12 +16,13 @@ from build import APP, ROOT, binary_version, build_release
 from notices import copy_notices
 
 RUNTIME_FILES = (
-    "install.py", "README.md", "README.uk.md", "scripts/build.py", "packaging/linux",
+    "install.py", "README.md", "README.uk.md", "docs", "scripts/build.py",
+    "scripts/fetch-gg-presets.py", "packaging/linux",
 )
 SOURCE_FILES = (
     "Cargo.toml", "Cargo.lock", "AGENTS.md", "README.md", "README.uk.md",
-    "Dockerfile", ".dockerignore", ".gitignore", ".github", "install.py", "packaging", "docs",
-    "scripts/build.py", "scripts/package.py", "scripts/notices.py", "scripts/render_icons.py", "tests", "src",
+    "Dockerfile", ".dockerignore", ".gitignore", ".github", "install", "install.py", "packaging", "docs",
+    "scripts/build.py", "scripts/package.py", "scripts/notices.py", "scripts/render_icons.py", "scripts/fetch-gg-presets.py", "tests", "src",
 )
 
 
@@ -61,7 +62,7 @@ def package(binary: Path, output: Path) -> None:
             destination = bundle / item
             destination.parent.mkdir(parents=True, exist_ok=True)
             if (ROOT / item).is_dir():
-                shutil.copytree(ROOT / item, destination)
+                shutil.copytree(ROOT / item, destination, ignore=shutil.ignore_patterns("__pycache__"))
             else:
                 shutil.copy2(ROOT / item, destination)
         (bundle / "BUILD.txt").write_text(

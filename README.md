@@ -3,9 +3,13 @@
 </p>
 <h1 align="center">Nova Control</h1>
 <p align="center"><strong>Hardware headset controls and per-app audio mixing for Linux.</strong><br>Rust · SteelSeries Arctis · PipeWire</p>
-<p align="center"><a href="#quick-start">Quick start</a> · <a href="#build-in-docker">Docker</a> · <a href="docs/headsets.md">Headset support</a> · <a href="README.uk.md">Українська</a></p>
+<p align="center"><a href="#quick-start">Quick start</a> · <a href="#install-from-a-checkout">Install with Docker</a> · <a href="#hardware-eq">Presets</a> · <a href="docs/headsets.md">Headset support</a> · <a href="README.uk.md">Українська</a></p>
 
 A native Rust application for SteelSeries Arctis Nova 7 Wireless Gen 2 (USB dongle `1038:227e`). The Overview shows connection, battery, active EQ, and quick actions. The microphone section in Mixer and header shortcut control the hardware Sidetone levels Off, Low, Medium and High. Nova Control reads the current value automatically and applies slider changes on release. Use **Save to headset** or `nova-control sidetone save` to commit the current device settings.
+
+![Nova Control Overview showing headset battery, EQ, Sidetone, and mixer channels](docs/screenshots/overview.png)
+
+[Mixer and microphone screenshot](docs/screenshots/mixer.png)
 
 ## Quick start
 
@@ -16,7 +20,7 @@ chmod +x nova-control
 ./nova-control
 ```
 
-The Debian 12 build requires glibc 2.36+ and a standard Linux graphical session with OpenGL. It runs without Rust, Python, or Docker installed. The mixer also needs PipeWire’s Pulse server and `pactl`. USB permissions may require the bundled udev rule.
+The Debian 12 build targets Linux x86-64 and requires glibc 2.36+, a graphical session with OpenGL, and the system libpulse library (libpulse0 on Debian and Ubuntu). It runs without Rust, Python, or Docker installed. The mixer talks to PipeWire’s Pulse server directly. USB permissions may require the bundled udev rule.
 
 ### Install desktop integration
 
@@ -28,9 +32,19 @@ python3 install.py
 
 Search for **Nova Control** in your application menu. Run the same command from a newer archive to update, then reopen the app if an older copy is still running. The installer copies the executable to `~/.local/bin/nova-control` and adds a per-user desktop entry. You can move or delete the extracted folder after installation.
 
+## Install from a checkout
+
+With Docker running and Python 3.9 or later installed, open a terminal in this repository and run:
+
+```sh
+./install
+```
+
+The script builds with a temporary Docker builder, installs Nova for your user, and removes that builder and its build cache. For USB permissions, run `./install --udev`, then reconnect the dongle. For one-step-at-a-time help, copy the [installation prompt](docs/install-prompt.md) into ChatGPT or Claude.
+
 ## Build from source
 
-Use Rust 1.95+, Python 3.11+, a C compiler and pkg-config. On Debian or Ubuntu, install `build-essential pkg-config libwayland-dev libxkbcommon-dev libegl1-mesa-dev libgl1-mesa-dev libx11-dev`. Run the installer from the source directory to build and install.
+Use Rust 1.95+, Python 3.11+, a C compiler and pkg-config. On Debian or Ubuntu, install `build-essential pkg-config libwayland-dev libxkbcommon-dev libegl1-mesa-dev libgl1-mesa-dev libx11-dev libpulse-dev`. Run the installer from the source directory to build and install.
 
 ```sh
 python3 install.py
@@ -65,15 +79,21 @@ For release archives, checksums, and the same executable as a separate file, sel
 
 ## Hardware EQ
 
-The **EQ** page reads the active curve and offers four local presets. Use `nova-control eq list|get|select|export|import` from the terminal. The importer accepts Nova Control JSON and the peaking-filter subset of Sonar parametric EQ JSON. The headset applies the curve directly and Nova Control verifies it by reading it back. [Firmware EQ format](https://github.com/loteran/Arctis-Sound-Manager/issues/146)
+The **EQ** page reads the active hardware curve and includes four local presets. You can also load a community snapshot of SteelSeries GG Sonar profiles:
 
-Drag filters on the EQ graph or enter precise frequency, gain and Q values. A/B applies the previous or current curve to the headset for comparison. Search the local presets by name or filter by favorites. Use the save button or `nova-control eq save` to store the current device settings.
+```sh
+python3 scripts/fetch-gg-presets.py
+```
+
+In **EQ**, choose **Reload library**, then search by name or use Favorites. You can also copy your own Nova or Sonar JSON files into `~/.config/nova-control/presets/` (or `$XDG_CONFIG_HOME/nova-control/presets/`). The pinned [community catalog](https://github.com/loteran/Arctis-Sound-Manager/blob/84545e49839e44137ce06b6e10df807ad0ad2440/presets_manifest.json) contains 385 profiles. Nova imports supported playback EQ curves. Microphone profiles and curves with unsupported filters are visible but disabled. Sonar effects such as ClearCast AI, spatial audio, and compression are separate from the headset’s playback EQ.
+
+Use `nova-control eq list|get|select|export|import` from the terminal. Drag filters on the graph or enter precise frequency, gain and Q values. A/B applies the previous or current curve for comparison. Use **Save to headset** or `nova-control eq save` to commit the current device settings. [Hardware EQ format](https://github.com/loteran/Arctis-Sound-Manager/issues/146)
 
 ## PipeWire mixer
 
 Application rows show locally installed program icons when available, with a letter fallback for unknown applications.
 
-Enable the mixer to create Game, Media, Chat, and any custom sinks you configure. Assign active applications with the channel menu or by dragging them to a channel. Levels, mute state, order, colors and routes are stored in the XDG configuration. The enabled state is saved. The installer registers a background mixer at desktop sign-in. It restores the saved settings when the headset becomes available and keeps running after the window closes. Choose **Disable mixer** to stop routing immediately and keep it off across sign-ins. `nova-control mixer run` remains available for manual foreground sessions. Requires PipeWire's Pulse server and `pactl`.
+Enable the mixer to create Game, Media, Chat, and any custom sinks you configure. Assign active applications with the channel menu or by dragging them to a channel. Levels, mute state, order, colors and routes are stored in the XDG configuration. The enabled state is saved. The installer registers a background mixer at desktop sign-in. It restores the saved settings when the headset becomes available and keeps running after the window closes. Choose **Disable mixer** to stop routing immediately and keep it off across sign-ins. `nova-control mixer run` remains available for manual foreground sessions. Requires PipeWire’s Pulse server.
 
 Enable **Physical ChatMix dial** to balance any two channels, including Game and Media. Other channels keep their own levels. CLI commands include `nova-control mixer chatmix Game Media`, `nova-control mixer chatmix off` and `nova-control mixer dial`.
 
@@ -96,3 +116,5 @@ The mixer CLI also supports **channel list**, **channel add NAME**, **channel re
 Mouse buttons 4 and 5 navigate backward and forward through visited panels. The Mixer includes Sidetone and mic gain, full-width channel rows, and the application list below them. Drag a channel by its grip to reorder it, or use Move up / Move down in its menu. All channel orders, including built-in channels, are saved.
 
 Hardware ChatMix samples are collected on a dedicated thread with a 25 ms target interval. The UI receives changed samples immediately and animates the position. Headset battery and charging status are queried every 350 ms, with a filling battery indicator while charging.
+
+See the [hardware Sidetone investigation](docs/sidetone-research.md) for the distinction between the headset monitor and the processed microphone stream.

@@ -1,0 +1,22 @@
+name: Headset compatibility report
+description: Help verify headset status and ChatMix on real hardware
+title: "[Headset] "
+body:
+  - type: input
+    id: model
+    attributes:
+      label: Exact headset model, including generation and suffix
+    validations:
+      required: true
+  - type: input
+    id: linux
+    attributes:
+      label: Linux distribution and Nova Control version
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Read-only status and dial observations
+      description: For 7X Gen 2, use nova-control probe 229e. Include the center and both ends of the wheel. Remove personal information from pasted output.
+      render: text
+    validations:
+      required: true

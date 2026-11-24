@@ -3,9 +3,20 @@
 </p>
 <h1 align="center">Nova Control</h1>
 <p align="center"><strong>Hardware headset controls and per-app audio mixing for Linux.</strong><br>Rust · SteelSeries Arctis · PipeWire</p>
-<p align="center"><a href="#quick-start">Quick start</a> · <a href="#install-from-a-checkout">Install with Docker</a> · <a href="#hardware-eq">Presets</a> · <a href="docs/headsets.md">Headset support</a> · <a href="README.uk.md">Українська</a></p>
+<p align="center"><a href="#headset-support">Headset support</a> · <a href="#quick-start">Quick start</a> · <a href="#install-from-a-checkout">Install with Docker</a> · <a href="#hardware-eq">Presets</a> · <a href="README.uk.md">Українська</a></p>
 
-A native Rust application for SteelSeries Arctis Nova 7 Wireless Gen 2 (USB dongle `1038:227e`). The Overview shows connection, battery, active EQ, and quick actions. The microphone section in Mixer and header shortcut control the hardware Sidetone levels Off, Low, Medium and High. Nova Control reads the current value automatically and applies slider changes on release. Use **Save to headset** or `nova-control sidetone save` to commit the current device settings.
+## Headset support
+
+| SteelSeries headset | USB dongle ID | Available in Nova Control |
+| --- | --- | --- |
+| **Arctis Nova 7 Gen 2** | `1038:227e` | **Hardware verified** · App controls for battery, Sidetone, EQ, microphone and ChatMix. |
+| Arctis Nova 7X Gen 2 | `1038:229e` | Experimental battery and ChatMix probe in 0.3.9+. |
+| Arctis Nova 7 Gen 1 | `1038:2202`, `1038:22a1` | Experimental battery and ChatMix probe in 0.3.10+. |
+| Arctis Nova 7X Gen 1 | `1038:2206`, `1038:22a4`, `1038:22a5` | Experimental battery and ChatMix probe in 0.3.10+. |
+
+Experimental probes are read-only terminal commands. [Probe instructions and test reports](docs/headsets.md)
+
+On Nova 7 Gen 2, Overview shows connection, battery, active EQ, and quick actions. The microphone section in Mixer and header shortcut control the hardware Sidetone levels Off, Low, Medium and High. Nova Control reads the current value automatically and applies slider changes on release. Use **Save to headset** or `nova-control sidetone save` to commit the current device settings.
 
 ![Nova Control Overview showing headset battery, EQ, Sidetone, and mixer channels](docs/screenshots/overview.png)
 

@@ -3,9 +3,20 @@
 </p>
 <h1 align="center">Nova Control</h1>
 <p align="center"><strong>Апаратні налаштування гарнітури й мікшер застосунків для Linux.</strong><br>Rust · SteelSeries Arctis · PipeWire</p>
-<p align="center"><a href="#встановлення-й-оновлення">Встановлення</a> · <a href="#апаратний-eq">Пресети</a> · <a href="docs/headsets.md">Гарнітури</a> · <a href="README.md">English</a></p>
+<p align="center"><a href="#підтримка-гарнітур">Підтримка гарнітур</a> · <a href="#встановлення-й-оновлення">Встановлення</a> · <a href="#апаратний-eq">Пресети</a> · <a href="README.md">English</a></p>
 
-Нативний застосунок для SteelSeries Arctis Nova 7 Wireless Gen 2 через USB-донгл `1038:227e`. Слайдер Mic Sidetone має чотири апаратні позиції **Off, Low, Medium і High**. Панель зчитує рівень автоматично. Зміна застосовується після відпускання повзунка. Кнопка **Зберегти в гарнітурі** або `nova-control sidetone save` записує поточні налаштування пристрою.
+## Підтримка гарнітур
+
+| Гарнітура SteelSeries | USB ID донгла | Що доступно в Nova Control |
+| --- | --- | --- |
+| **Arctis Nova 7 Gen 2** | `1038:227e` | **Перевірено на гарнітурі** · Заряд, Sidetone, EQ, налаштування мікрофона й ChatMix у застосунку. |
+| Arctis Nova 7X Gen 2 | `1038:229e` | Експериментальне читання заряду й ChatMix від 0.3.9. |
+| Arctis Nova 7 Gen 1 | `1038:2202`, `1038:22a1` | Експериментальне читання заряду й ChatMix від 0.3.10. |
+| Arctis Nova 7X Gen 1 | `1038:2206`, `1038:22a4`, `1038:22a5` | Експериментальне читання заряду й ChatMix від 0.3.10. |
+
+Експериментальна діагностика зчитує дані через термінал. [Інструкція з перевірки](docs/headsets.md)
+
+На Nova 7 Gen 2 слайдер Mic Sidetone має чотири апаратні позиції **Off, Low, Medium і High**. Панель зчитує рівень автоматично. Зміна застосовується після відпускання повзунка. Кнопка **Зберегти в гарнітурі** або `nova-control sidetone save` записує поточні налаштування пристрою.
 
 ![Огляд Nova Control із зарядом гарнітури, EQ, Sidetone та каналами мікшера](docs/screenshots/overview.png)
 

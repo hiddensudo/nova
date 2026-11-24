@@ -17,5 +17,5 @@ pub(super) fn dispatch(args: &[&str]) -> Result<(), String> {
 }
 
 fn parse(value: &str) -> Result<u8, String> {
-    value.parse().map_err(|_| "Очікується ціле число.".into())
+    value.parse().map_err(|_| "Expected an integer.".into())
 }

@@ -189,7 +189,7 @@ impl Engine {
             Ok(result) => result,
             Err(mpsc::TryRecvError::Empty) => return,
             Err(mpsc::TryRecvError::Disconnected) => {
-                Err("Запит до донгла перервався. Рівень буде зчитано повторно.".into())
+                Err("The dongle request was interrupted. Nova will read the level again.".into())
             }
         };
         let operation = request.operation;

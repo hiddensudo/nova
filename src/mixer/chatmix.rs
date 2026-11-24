@@ -11,7 +11,7 @@ pub struct Pair {
 impl Pair {
     pub fn new(left: Channel, right: Channel) -> Result<Self, String> {
         if left == right {
-            return Err("Вибери два різні канали для ChatMix.".into());
+            return Err("Choose two different channels for ChatMix.".into());
         }
         Ok(Self { left, right })
     }

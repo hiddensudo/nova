@@ -60,6 +60,6 @@ pub(super) fn path() -> Result<PathBuf, String> {
         .map(PathBuf::from)
         .filter(|path| path.is_absolute())
         .or_else(|| env::var_os("HOME").map(|home| PathBuf::from(home).join(".config")))
-        .ok_or_else(|| "Немає каталогу конфігурації.".to_owned())?;
+        .ok_or_else(|| "The configuration directory is unavailable.".to_owned())?;
     Ok(root.join("nova-control/mixer.json"))
 }

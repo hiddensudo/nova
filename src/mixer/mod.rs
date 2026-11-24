@@ -84,7 +84,7 @@ fn runtime_dir() -> Result<PathBuf, String> {
                 .ok()
                 .and_then(|path| path.parent().map(PathBuf::from))
         })
-        .ok_or_else(|| "Немає каталогу стану мікшера.".to_owned())?;
+        .ok_or_else(|| "The mixer state directory is unavailable.".to_owned())?;
     fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
     Ok(dir)
 }
@@ -108,9 +108,8 @@ pub fn run(
         .truncate(false)
         .open(lock_dir.join("nova-control-mixer.lock"))
         .map_err(|error| error.to_string())?;
-    lock.try_lock().map_err(|error| {
-        format!("Мікшер Nova Control уже запущено або він недоступний ({error}).")
-    })?;
+    lock.try_lock()
+        .map_err(|error| format!("Nova's mixer is already running or unavailable ({error})."))?;
     let reader = dial::DialReader::start();
     let mut controller = Controller::default();
     let mut latest = None;
@@ -173,7 +172,7 @@ impl Controller {
         let Some(output) = sinks.iter().find(|sink| sink.is_nova()).cloned() else {
             self.session = None;
             self.dial = None;
-            return Err("Очікую аудіовихід Nova 7 Gen 2 у PipeWire.".into());
+            return Err("Waiting for the Nova 7 Gen 2 audio output in PipeWire.".into());
         };
         let channels = config.channels();
         let missing = channels

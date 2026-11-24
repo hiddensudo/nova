@@ -34,7 +34,7 @@ impl Profile {
             "bass" | "bass boost" => (PRESETS[1], [35, 50, 35, 15, 0, 0, 0, 0, 0, 0]),
             "focus" => (PRESETS[2], [-35, -30, -20, -10, 0, 10, 25, 20, 5, 0]),
             "smiley" => (PRESETS[3], [25, 30, 15, 0, -15, -20, -10, 5, 25, 30]),
-            _ => return Err(format!("Невідомий пресет: {name}.")),
+            _ => return Err(format!("Unknown preset: {name}.")),
         };
         profile.name = name.to_owned();
         profile.kind = u8::from(name != "Flat");
@@ -63,7 +63,7 @@ impl Profile {
             || !self.name.bytes().all(|b| b.is_ascii_graphic() || b == b' ')
             || self.kind > 1
         {
-            return Err("Назва EQ має містити 1–32 друковані ASCII-символи.".into());
+            return Err("The EQ name must contain 1–32 printable ASCII characters.".into());
         }
         for (i, band) in self.bands.iter().enumerate() {
             if band.filter != 1
@@ -72,7 +72,7 @@ impl Profile {
                 || !(200..=10_000).contains(&band.q_thousandths)
             {
                 return Err(format!(
-                    "Смуга {} має бути піковим фільтром: 20–20000 Гц, −12…+12 дБ, Q 0,2–10.",
+                    "Band {} must be a peaking filter: 20–20000 Hz, −12 to +12 dB, Q 0.2–10.",
                     i + 1
                 ));
             }
@@ -94,13 +94,13 @@ pub fn apply(profile: &Profile) -> Result<Profile, String> {
         }
         previous
             .validate()
-            .map_err(|error| format!("Поточний профіль не можна відновити: {error}"))?;
+            .map_err(|error| format!("Cannot restore the current profile: {error}"))?;
         match wire::write_verified(port, profile) {
             Ok(actual) => Ok(actual),
             Err(error) => match wire::write_verified(port, &previous) {
-                Ok(_) => Err(format!("{error} Відновлено попередній профіль.")),
+                Ok(_) => Err(format!("{error} Restored the previous profile.")),
                 Err(restore) => Err(format!(
-                    "{error} Відновлення профілю не підтверджено. {restore}"
+                    "{error} Could not verify profile recovery. {restore}"
                 )),
             },
         }
@@ -112,7 +112,7 @@ pub fn save(desired: &Profile) -> Result<Profile, String> {
     with_device(|port| {
         if wire::read(port)? != *desired {
             return Err(
-                "Активна крива змінилася. Застосуй потрібний профіль перед збереженням.".into(),
+                "The active curve changed. Apply the desired profile before saving.".into(),
             );
         }
         super::protocol::persist(port)?;
@@ -120,7 +120,7 @@ pub fn save(desired: &Profile) -> Result<Profile, String> {
         if actual == *desired {
             Ok(actual)
         } else {
-            Err("Після збереження гарнітура повернула іншу криву.".into())
+            Err("The headset reported a different curve after saving.".into())
         }
     })
 }

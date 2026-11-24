@@ -72,7 +72,7 @@ impl Config {
         self.channels()
             .into_iter()
             .find(|&channel| self.name(channel).eq_ignore_ascii_case(name))
-            .ok_or_else(|| format!("Невідомий канал · {name}"))
+            .ok_or_else(|| format!("Unknown channel · {name}"))
     }
 
     pub fn level(&self, channel: Channel) -> u8 {
@@ -85,12 +85,14 @@ impl Config {
 
     pub fn set_level(&mut self, channel: Channel, level: u8) -> Result<(), String> {
         if level > 100 {
-            return Err("Гучність має бути 0–100.".into());
+            return Err("Volume must be 0–100.".into());
         }
         if let Some(index) = channel.builtin_index() {
             self.levels[index] = level;
         } else {
-            self.custom_mut(channel).ok_or("Канал видалено.")?.level = level;
+            self.custom_mut(channel)
+                .ok_or("The channel was deleted.")?
+                .level = level;
         }
         Ok(())
     }
@@ -122,7 +124,9 @@ impl Config {
         if let Some(index) = channel.builtin_index() {
             self.builtin_colors[index] = color;
         } else {
-            self.custom_mut(channel).ok_or("Канал видалено.")?.color = color;
+            self.custom_mut(channel)
+                .ok_or("The channel was deleted.")?
+                .color = color;
         }
         Ok(())
     }
@@ -151,7 +155,7 @@ impl Config {
         let id = self.next_channel_id;
         self.next_channel_id = id
             .checked_add(1)
-            .ok_or("Досягнуто межі ідентифікаторів каналів.")?;
+            .ok_or("The channel ID limit was reached.")?;
         let channel = Channel::Custom(id);
         self.custom_channels.push(CustomChannel {
             id,
@@ -188,7 +192,7 @@ impl Config {
     #[cfg(feature = "gui")]
     pub fn move_channel(&mut self, channel: Channel, before: Channel) -> Result<(), String> {
         if !self.exists(channel) || !self.exists(before) {
-            return Err("Канал видалено.".into());
+            return Err("The channel was deleted.".into());
         }
         if channel == before {
             return Ok(());
@@ -211,14 +215,14 @@ impl Config {
     pub fn rename_channel(&mut self, channel: Channel, name: &str) -> Result<(), String> {
         let name = self.validate_name(name, Some(channel))?;
         self.custom_mut(channel)
-            .ok_or("Можна перейменувати лише власний канал.")?
+            .ok_or("Only custom channels can be renamed.")?
             .name = name;
         Ok(())
     }
 
     pub fn remove_channel(&mut self, channel: Channel) -> Result<(), String> {
         let Channel::Custom(id) = channel else {
-            return Err("Вбудований канал не можна видалити.".into());
+            return Err("Built-in channels cannot be deleted.".into());
         };
         self.custom_channels.retain(|row| row.id != id);
         self.channel_order.retain(|&row| row != channel);
@@ -243,7 +247,7 @@ impl Config {
                 Some(channel) != current && self.name(channel).eq_ignore_ascii_case(name)
             })
         {
-            return Err("Вкажи унікальну назву каналу від 1 до 24 символів.".into());
+            return Err("Enter a unique channel name from 1 to 24 characters.".into());
         }
         Ok(name.to_owned())
     }
@@ -275,12 +279,12 @@ impl Config {
                 .chain(self.muted.iter())
                 .any(|&channel| !self.exists(channel))
         {
-            return Err("mixer.json містить некоректний канал або рівень гучності.".into());
+            return Err("mixer.json contains an invalid channel or volume.".into());
         }
         if let Some(pair) = self.pair {
             Pair::new(pair.left, pair.right)?;
             if !self.exists(pair.left) || !self.exists(pair.right) {
-                return Err("mixer.json містить невідому пару ChatMix.".into());
+                return Err("mixer.json contains an unknown ChatMix pair.".into());
             }
         }
         Ok(())

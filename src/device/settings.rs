@@ -51,7 +51,7 @@ impl Change {
             Self::MicVolume(value @ 0..=7) => Ok([0x37, value]),
             Self::SleepMinutes(value @ 0..=90) => Ok([0xa3, value]),
             Self::MuteLed(value @ 0..=3) => Ok([0xae, value]),
-            _ => Err("Допустимі значення: мікрофон 0–7, сон 0–90 хв, LED 0–3.".into()),
+            _ => Err("Accepted ranges: mic 0–7, sleep timer 0–90 minutes, LED 0–3.".into()),
         }
     }
 
@@ -84,7 +84,7 @@ pub fn apply(change: Change) -> Result<Settings, String> {
     with_device(|port| {
         let current = read(port)?;
         if !current.connected {
-            return Err("Увімкни гарнітуру та дочекайся з’єднання через 2,4 ГГц.".into());
+            return Err("Turn on the headset and wait for its 2.4 GHz connection.".into());
         }
         if change.matches(current) {
             return Ok(current);
@@ -100,14 +100,14 @@ pub fn apply(change: Change) -> Result<Settings, String> {
                 return Ok(actual);
             }
         }
-        Err("Гарнітура не підтвердила зміну налаштувань.".into())
+        Err("The headset did not confirm the settings change.".into())
     })
 }
 
 pub fn save() -> Result<Settings, String> {
     with_device(|port| {
         if !read(port)?.connected {
-            return Err("Гарнітура має бути підключена для збереження.".into());
+            return Err("Connect the headset before saving.".into());
         }
         persist(port)?;
         read(port)
@@ -130,7 +130,7 @@ fn decode(status: &[u8], audio: &[u8], ux: &[u8]) -> Result<Settings, String> {
         [UX, timer, led @ 0..=3, ..],
     ) = (status, audio, ux)
     else {
-        return Err("Неповна або некоректна відповідь про налаштування Nova 7 Gen 2.".into());
+        return Err("The Nova 7 Gen 2 returned incomplete or invalid settings.".into());
     };
     let connected = *link == 3;
     Ok(Settings {

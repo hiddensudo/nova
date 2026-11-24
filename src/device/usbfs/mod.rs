@@ -12,32 +12,36 @@ use std::{
 
 use reports::UsbConnection;
 
+use super::Model;
+
 const CONTROL_INTERFACE: u16 = 3;
 
 pub(super) struct UsbPort {
     pub path: PathBuf,
+    model: Model,
 }
 
 impl UsbPort {
-    pub fn find() -> Result<Self, String> {
+    pub fn find(model: Model) -> Result<Self, String> {
         let devices = fs::read_dir("/sys/bus/usb/devices")
-            .map_err(|error| format!("Немає доступу до USB у sysfs ({error})."))?;
+            .map_err(|error| format!("Cannot access USB devices in sysfs ({error})."))?;
         let mut ports = devices
             .flatten()
-            .filter_map(|entry| find_port(&entry.path()));
+            .filter_map(|entry| find_port(&entry.path(), model));
         match (ports.next(), ports.next()) {
             (Some(port), None) => Ok(port),
-            (Some(_), Some(_)) => Err("Залиш підключеним один донгл Nova 7 Gen 2.".into()),
-            _ => {
-                Err("Керувальний USB-інтерфейс донгла Nova 7 Gen 2 (1038:227e) не знайдено.".into())
-            }
+            (Some(_), Some(_)) => Err("Connect only one matching headset dongle.".into()),
+            _ => Err("No matching headset USB control interface found.".into()),
         }
     }
 
     #[cfg(feature = "gui")]
-    pub fn present() -> bool {
-        fs::read_dir("/sys/bus/usb/devices")
-            .is_ok_and(|devices| devices.flatten().any(|entry| is_nova_dongle(&entry.path())))
+    pub fn present(model: Model) -> bool {
+        fs::read_dir("/sys/bus/usb/devices").is_ok_and(|devices| {
+            devices
+                .flatten()
+                .any(|entry| matches_model(&entry.path(), model))
+        })
     }
 
     fn open_device(&self) -> Result<File, String> {
@@ -45,8 +49,8 @@ impl UsbPort {
             .custom_flags(libc::O_NOFOLLOW)
             .open(&self.path)
             .map_err(|error| match error.kind() {
-                ErrorKind::PermissionDenied => format!("Немає доступу до {}. Перевір правило udev для 1038:227e.", self.path.display()),
-                _ => format!("Не вдалося відкрити {} ({error}). Запусти з локального термінала Linux із підключеним донглом.", self.path.display()),
+                ErrorKind::PermissionDenied => format!("Cannot access {}. Check the Nova Control udev rule.", self.path.display()),
+                _ => format!("Could not open {} ({error}). Run Nova in a local Linux session with the dongle connected.", self.path.display()),
             })?;
         let mut descriptor = [0; 18];
         let is_device = file
@@ -57,9 +61,12 @@ impl UsbPort {
         if !is_device
             || file.read_exact(&mut descriptor).is_err()
             || descriptor[..2] != [18, 1]
-            || descriptor[8..12] != [0x38, 0x10, 0x7e, 0x22]
+            || !self.model.matches(
+                u16::from_le_bytes([descriptor[8], descriptor[9]]),
+                u16::from_le_bytes([descriptor[10], descriptor[11]]),
+            )
         {
-            return Err("USB-адреса донгла змінилася. Повтори спробу.".into());
+            return Err("The dongle USB address changed. Try again.".into());
         }
         Ok(file)
     }
@@ -79,15 +86,15 @@ impl UsbPort {
         if result < 0 {
             let error = io::Error::last_os_error();
             return Err(format!(
-                "Керувальний HID-інтерфейс 3 недоступний ({error}). Закрий інший менеджер навушників, якщо він відкритий, і повтори спробу."
+                "HID control interface 3 is unavailable ({error}). Close any other headset manager and try again."
             ));
         }
         Ok(UsbConnection(file))
     }
 }
 
-fn find_port(device: &Path) -> Option<UsbPort> {
-    if !is_nova_dongle(device) {
+fn find_port(device: &Path, model: Model) -> Option<UsbPort> {
+    if !matches_model(device, model) {
         return None;
     }
     let name = device.file_name()?.to_str()?;
@@ -102,6 +109,7 @@ fn find_port(device: &Path) -> Option<UsbPort> {
     let bus: u16 = read(device, "busnum")?.parse().ok()?;
     let address: u8 = read(device, "devnum")?.parse().ok()?;
     Some(UsbPort {
+        model,
         path: PathBuf::from(format!("/dev/bus/usb/{bus:03}/{address:03}")),
     })
 }
@@ -115,7 +123,11 @@ fn read(path: &Path, attribute: &str) -> Option<String> {
     )
 }
 
-fn is_nova_dongle(device: &Path) -> bool {
-    read(device, "idVendor").as_deref() == Some("1038")
-        && read(device, "idProduct").as_deref() == Some("227e")
+fn matches_model(device: &Path, model: Model) -> bool {
+    let id =
+        |attribute| read(device, attribute).and_then(|value| u16::from_str_radix(&value, 16).ok());
+    match (id("idVendor"), id("idProduct")) {
+        (Some(vendor), Some(product)) => model.matches(vendor, product),
+        _ => false,
+    }
 }

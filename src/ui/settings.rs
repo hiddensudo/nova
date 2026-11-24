@@ -292,8 +292,8 @@ impl SettingsPage {
             ComboBox::from_id_salt("interface-language")
                 .selected_text(name)
                 .show_ui(ui, |ui| {
-                    ui.selectable_value(&mut prefs.language, Language::Ukrainian, "Українська");
                     ui.selectable_value(&mut prefs.language, Language::English, "English");
+                    ui.selectable_value(&mut prefs.language, Language::Ukrainian, "Українська");
                 });
         });
         let mut changed = prefs.language != before;

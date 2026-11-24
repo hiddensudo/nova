@@ -97,7 +97,7 @@ impl ErrorGate {
     fn admit(&mut self, message: &str, now: Instant) -> bool {
         self.healthy_since = None;
         let busy = message.contains("os error 16")
-            || message.contains("Донгл зайнятий")
+            || message.contains("Dongle busy")
             || message.contains("EBUSY");
         if busy
             || self.incident

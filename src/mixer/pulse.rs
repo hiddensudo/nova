@@ -78,7 +78,7 @@ impl Stream {
             .get("application.name")
             .map(String::as_str)
             .or_else(|| self.app_key())
-            .unwrap_or("Аудіопотік")
+            .unwrap_or("Audio stream")
     }
 }
 
@@ -133,7 +133,7 @@ pub(super) fn call(arguments: &[&str]) -> Result<String, String> {
         .env("LC_ALL", "C")
         .stdin(Stdio::null())
         .output()
-        .map_err(|error| format!("Запуск pactl не вдався: {error}"))?;
+        .map_err(|error| format!("Could not run pactl: {error}"))?;
     if !output.status.success() {
         return Err(format!(
             "pactl {}: {}",

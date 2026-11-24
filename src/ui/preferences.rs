@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Default, Deserialize, PartialEq, Eq, Serialize)]
 pub(super) enum Language {
-    #[default]
     Ukrainian,
+    #[default]
     English,
 }
 

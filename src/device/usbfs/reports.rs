@@ -54,7 +54,7 @@ impl HidReports for UsbConnection {
             -1 => Err(io::Error::last_os_error()),
             count if count as usize == payload.len() => Ok(()),
             count => Err(io::Error::other(format!(
-                "неповний запис USB ({count}/{} байтів)",
+                "short USB write ({count}/{} bytes)",
                 payload.len()
             ))),
         }

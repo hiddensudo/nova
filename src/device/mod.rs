@@ -1,6 +1,8 @@
 pub mod chatmix;
 pub mod eq;
 mod hidraw;
+mod model;
+pub mod probe;
 mod protocol;
 pub mod settings;
 mod transaction;
@@ -9,6 +11,7 @@ mod usbfs;
 use std::{io, sync::Mutex, time::Duration};
 
 use hidraw::{Hidraw, HidrawPort};
+use model::Model;
 use protocol::{READ_TIMEOUT, transact};
 use usbfs::UsbPort;
 
@@ -19,27 +22,31 @@ const REPORT_SIZE: usize = 65;
 static USB_TRANSACTION: Mutex<()> = Mutex::new(());
 
 pub fn detect() -> Result<String, String> {
-    let (path, transport, availability) = match HidrawPort::find()? {
+    let model = Model::Nova7Gen2;
+    let (path, transport, availability) = match HidrawPort::find(model)? {
         Some(port) => {
             let availability = port.open().map(|_| ());
             (port.path, "hidraw", availability)
         }
         None => {
-            let port = UsbPort::find()?;
+            let port = UsbPort::find(model)?;
             let availability = port.claim().map(|_| ());
             (port.path, "usbfs", availability)
         }
     };
-    let availability = availability.err().unwrap_or_else(|| "доступний".into());
+    let availability = availability.err().unwrap_or_else(|| "available".into());
     Ok(format!(
-        "Arctis Nova 7 Gen 2 · 1038:227e · USB HID 3 ({transport}) · {} · {availability}",
+        "{} · {:04x}:{:04x} · USB HID 3 ({transport}) · {} · {availability}",
+        model.name(),
+        Model::VENDOR,
+        model.product(),
         path.display()
     ))
 }
 
 #[cfg(feature = "gui")]
 pub fn dongle_present() -> bool {
-    UsbPort::present()
+    UsbPort::present(Model::Nova7Gen2)
 }
 
 pub fn sidetone(operation: Operation) -> Result<Sidetone, String> {
@@ -49,9 +56,16 @@ pub fn sidetone(operation: Operation) -> Result<Sidetone, String> {
 fn with_device<T>(
     operation: impl FnOnce(&mut dyn HidReports) -> Result<T, String>,
 ) -> Result<T, String> {
+    with_model(Model::Nova7Gen2, operation)
+}
+
+fn with_model<T>(
+    model: Model,
+    operation: impl FnOnce(&mut dyn HidReports) -> Result<T, String>,
+) -> Result<T, String> {
     let _serial = USB_TRANSACTION.lock().map_err(|error| error.to_string())?;
     let _process_lock = transaction::acquire(true)?;
-    open_device(operation)
+    open_device(model, operation)
 }
 
 fn try_with_device<T>(
@@ -63,21 +77,22 @@ fn try_with_device<T>(
     let Some(_process_lock) = transaction::acquire(false)? else {
         return Ok(None);
     };
-    open_device(operation).map(Some)
+    open_device(Model::Nova7Gen2, operation).map(Some)
 }
 
 fn open_device<T>(
+    model: Model,
     operation: impl FnOnce(&mut dyn HidReports) -> Result<T, String>,
 ) -> Result<T, String> {
-    match HidrawPort::find()? {
+    match HidrawPort::find(model)? {
         Some(port) => {
             let file = port.open()?;
             file.try_lock().map_err(|error| {
-                format!("Донгл зайнятий або блокування недоступне. Спробуй ще раз. ({error})")
+                format!("Dongle busy or lock unavailable. Try again. ({error})")
             })?;
             operation(&mut Hidraw(file))
         }
-        None => operation(&mut UsbPort::find()?.claim()?),
+        None => operation(&mut UsbPort::find(model)?.claim()?),
     }
 }
 

@@ -39,7 +39,7 @@ impl Sidetone {
             .find(|level| {
                 value == (*level as u8).to_string() || value.eq_ignore_ascii_case(level.label())
             })
-            .ok_or_else(|| "Вкажи 0 (Off), 1 (Low), 2 (Medium) або 3 (High).".into())
+            .ok_or_else(|| "Choose 0 (Off), 1 (Low), 2 (Medium), or 3 (High).".into())
     }
 }
 
@@ -62,7 +62,7 @@ pub(super) fn transact(
             persist(file)?;
             let actual = read_level(file, timeout)?;
             if actual != expected {
-                return Err("Рівень Sidetone змінився під час збереження.".into());
+                return Err("Sidetone changed during the save.".into());
             }
             Ok(actual)
         }
@@ -83,12 +83,12 @@ pub(super) fn transact(
             match confirmed {
                 Ok(level) if level == desired => Ok(level),
                 Ok(level) => Err(format!(
-                    "Гарнітура повернула {} після запиту {}.",
+                    "The headset reported {} after requesting {}.",
                     level.label(),
                     desired.label()
                 )),
                 Err(error) => Err(format!(
-                    "Команду надіслано, новий рівень не підтверджено. {error}"
+                    "Command sent, but the new level could not be verified. {error}"
                 )),
             }
         }
@@ -114,14 +114,14 @@ pub(super) fn send_bytes(port: &mut dyn HidReports, body: &[u8]) -> Result<(), S
         match port.write_report(&report) {
             Ok(()) => return Ok(()),
             Err(error) if error.kind() == ErrorKind::Interrupted => continue,
-            Err(error) => return Err(format!("Запис HID 0x{command:02x} не вдався ({error}).")),
+            Err(error) => return Err(format!("HID write 0x{command:02x} failed ({error}).")),
         }
     }
 }
 
 fn read_level(port: &mut dyn HidReports, timeout: Duration) -> Result<Sidetone, String> {
     let reply = query(port, &[SETTINGS, 0], timeout)?;
-    decode_settings(&reply)?.ok_or_else(|| "Неочікувана відповідь Sidetone.".into())
+    decode_settings(&reply)?.ok_or_else(|| "Unexpected Sidetone response.".into())
 }
 
 pub(super) fn query(
@@ -135,17 +135,17 @@ pub(super) fn query(
 
     while let Some(remaining) = deadline.checked_duration_since(Instant::now()) {
         match port.read_report(&mut reply, remaining) {
-            Ok(0) => return Err("З’єднання з донглом перервано.".into()),
+            Ok(0) => return Err("The dongle connection was interrupted.".into()),
             Ok(size) if reply[0] == body[0] => return Ok(reply[..size].to_vec()),
             Ok(_) => {}
             Err(error)
                 if matches!(error.kind(), ErrorKind::WouldBlock | ErrorKind::Interrupted) => {}
             Err(error) if error.kind() == ErrorKind::TimedOut => break,
-            Err(error) => return Err(format!("Читання HID не вдалося ({error}).")),
+            Err(error) => return Err(format!("HID read failed ({error}).")),
         }
     }
     Err(format!(
-        "Донгл не відповів на запит 0x{:02x}. Перевір з’єднання через 2,4 ГГц.",
+        "The dongle did not answer request 0x{:02x}. Check the 2.4 GHz connection.",
         body[0]
     ))
 }
@@ -155,14 +155,14 @@ fn decode_settings(reply: &[u8]) -> Result<Option<Sidetone>, String> {
         return Ok(None);
     }
     if reply.len() < 4 {
-        return Err("Закоротка відповідь на запит Sidetone.".into());
+        return Err("Sidetone response was too short.".into());
     }
     let value = reply[2];
     Sidetone::ALL
         .get(usize::from(value))
         .copied()
         .map(Some)
-        .ok_or_else(|| format!("Невідомий апаратний рівень Sidetone ({value})."))
+        .ok_or_else(|| format!("Unknown hardware Sidetone level ({value})."))
 }
 
 #[cfg(test)]

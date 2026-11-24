@@ -137,13 +137,13 @@ fn all_panels_show_primary_controls_at_the_minimum_window_size() {
         eq: EqPage::fixture(eq),
         ..Default::default()
     };
-    assert_eq!(app.page.name(app.prefs.language), "Огляд");
+    assert_eq!(app.page.name(app.prefs.language), "Overview");
 
     for (page, wanted) in [
-        (Page::Overview, ["Arctis Nova 7 Gen 2", "Аудіо"]),
-        (Page::Eq, ["Focus", "Пресети"]),
-        (Page::Mixer, ["Мікшер", "+  Додати канал"]),
-        (Page::Settings, ["Системні сповіщення", "Гарнітура"]),
+        (Page::Overview, ["Arctis Nova 7 Gen 2", "Audio"]),
+        (Page::Eq, ["Focus", "Presets"]),
+        (Page::Mixer, ["Mixer", "+  Add channel"]),
+        (Page::Settings, ["Desktop notifications", "Headset"]),
     ] {
         app.page = page;
         let minimum = || egui::RawInput {
@@ -167,7 +167,7 @@ fn all_panels_show_primary_controls_at_the_minimum_window_size() {
             );
         }
         if page == Page::Overview {
-            assert!(!labels.iter().any(|label| label == "Зберегти в гарнітурі"));
+            assert!(!labels.iter().any(|label| label == "Save to headset"));
         }
     }
 }

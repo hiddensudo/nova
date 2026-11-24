@@ -48,7 +48,7 @@ fn from_sonar(label: &str, eq: &Value) -> Result<Profile, String> {
             continue;
         }
         if filter.get("type").and_then(Value::as_str) != Some("peakingEQ") {
-            return Err(format!("{key}: апаратний імпорт підтримує пікові фільтри."));
+            return Err(format!("{key}: hardware import supports peaking filters."));
         }
         band.hz = number(filter, "frequency", 20.0, 20_000.0)?.round() as u16;
         band.gain_tenths = (number(filter, "gain", -12.0, 12.0)? * 10.0).round() as i8;
@@ -62,7 +62,7 @@ fn number(object: &Value, key: &str, min: f64, max: f64) -> Result<f64, String> 
         .get(key)
         .and_then(Value::as_f64)
         .filter(|v| (min..=max).contains(v))
-        .ok_or_else(|| format!("{key}: очікується значення {min}…{max}."))
+        .ok_or_else(|| format!("{key}: expected a value from {min} to {max}."))
 }
 
 #[cfg(test)]

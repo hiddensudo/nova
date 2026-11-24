@@ -28,13 +28,13 @@ fn decode(bands: &[u8], name: &[u8]) -> Result<Profile, String> {
         || bands.len() < 2 + BAND_COUNT * BAND_BYTES
         || name.len() < 4
     {
-        return Err("Некоректна відповідь апаратного EQ.".into());
+        return Err("Invalid hardware EQ response.".into());
     }
     let name_bytes = name[3..].split(|&b| b == 0).next().unwrap_or_default();
     let label = std::str::from_utf8(name_bytes)
-        .map_err(|_| "Гарнітура повернула некоректну назву EQ.".to_owned())?;
+        .map_err(|_| "The headset returned an invalid EQ name.".to_owned())?;
     if label.is_empty() {
-        return Err("Гарнітура повернула порожню назву EQ.".into());
+        return Err("The headset returned an empty EQ name.".into());
     }
     let bands = std::array::from_fn(|i| {
         let b = &bands[2 + i * BAND_BYTES..];
@@ -80,7 +80,7 @@ pub(super) fn write_verified(
             return Ok(actual);
         }
     }
-    Err("Гарнітура не підтвердила нову назву та криву EQ.".into())
+    Err("The headset did not confirm the new EQ name and curve.".into())
 }
 
 #[cfg(test)]

@@ -9,9 +9,7 @@ use std::{
     time::Duration,
 };
 
-use super::{HidReports, REPORT_SIZE};
-
-const USB_ID: &str = "HID_ID=0003:00001038:0000227E";
+use super::{HidReports, Model, REPORT_SIZE};
 
 pub(super) struct HidrawPort {
     pub(super) path: PathBuf,
@@ -19,20 +17,20 @@ pub(super) struct HidrawPort {
 }
 
 impl HidrawPort {
-    pub(super) fn find() -> Result<Option<Self>, String> {
+    pub(super) fn find(model: Model) -> Result<Option<Self>, String> {
         let devices = match fs::read_dir("/sys/class/hidraw") {
             Ok(devices) => devices,
             Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
-            Err(error) => return Err(format!("Немає доступу до Linux hidraw у sysfs ({error}).")),
+            Err(error) => return Err(format!("Cannot access Linux hidraw in sysfs ({error}).")),
         };
+        let usb_id = format!("HID_ID=0003:{:08X}:{:08X}", Model::VENDOR, model.product());
         let mut ports = devices
             .flatten()
-            .filter_map(|device| inspect_port(&device.path()));
+            .filter_map(|device| inspect_port(&device.path(), &usb_id));
         let port = ports.next();
         if ports.next().is_some() {
             return Err(
-                "Виявлено кілька керувальних HID. Залиш підключеним один донгл Nova 7 Gen 2."
-                    .into(),
+                "Multiple matching HID interfaces found. Connect only one matching dongle.".into(),
             );
         }
         Ok(port)
@@ -43,24 +41,24 @@ impl HidrawPort {
             .custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW)
             .open(&self.path)
             .map_err(|error| match error.kind() {
-                ErrorKind::NotFound => format!("Вузол {} недоступний. Запусти з локального термінала Linux із підключеним донглом.", self.path.display()),
-                ErrorKind::PermissionDenied => format!("Немає доступу до {}. Перевір правило udev для 1038:227e.", self.path.display()),
-                _ => format!("Не вдалося відкрити {} ({error}).", self.path.display()),
+                ErrorKind::NotFound => format!("Device {} is unavailable. Run Nova in a local Linux session with the dongle connected.", self.path.display()),
+                ErrorKind::PermissionDenied => format!("Cannot access {}. Check the Nova Control udev rule.", self.path.display()),
+                _ => format!("Could not open {} ({error}).", self.path.display()),
             })?;
         let metadata = file
             .metadata()
-            .map_err(|error| format!("Перевірка вузла HID не вдалася ({error})."))?;
+            .map_err(|error| format!("Could not verify the HID device ({error})."))?;
         if !metadata.file_type().is_char_device() || metadata.rdev() != self.device_number {
-            return Err("Вузол HID змінився. Повтори підключення.".into());
+            return Err("The HID device changed. Reconnect the dongle and try again.".into());
         }
         Ok(file)
     }
 }
 
-fn inspect_port(entry: &Path) -> Option<HidrawPort> {
+fn inspect_port(entry: &Path, usb_id: &str) -> Option<HidrawPort> {
     let device = entry.join("device");
     let uevent = fs::read_to_string(device.join("uevent")).ok()?;
-    if !uevent.lines().any(|line| line.eq_ignore_ascii_case(USB_ID)) {
+    if !uevent.lines().any(|line| line.eq_ignore_ascii_case(usb_id)) {
         return None;
     }
     let interface = fs::read_to_string(device.join("../bInterfaceNumber")).ok()?;
@@ -103,7 +101,7 @@ impl HidReports for Hidraw {
         match self.0.write(report)? {
             REPORT_SIZE => Ok(()),
             count => Err(io::Error::other(format!(
-                "неповний запис {count}/{REPORT_SIZE} байтів"
+                "short write: {count}/{REPORT_SIZE} bytes"
             ))),
         }
     }

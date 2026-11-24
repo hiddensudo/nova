@@ -17,11 +17,11 @@ pub(super) fn status(port: &mut dyn HidReports, timeout: Duration) -> Result<Vec
     query(port, &[STATUS, 0], timeout)
 }
 
-fn decode(report: &[u8]) -> Result<[u8; 2], String> {
+pub(super) fn decode(report: &[u8]) -> Result<[u8; 2], String> {
     if let [STATUS, 3, _, _, left @ 0..=100, right @ 0..=100, ..] = report {
         return Ok([*left, *right]);
     }
-    Err("Гарнітура не повернула дійсну позицію ChatMix.".into())
+    Err("The headset did not report a valid ChatMix position.".into())
 }
 
 #[cfg(test)]

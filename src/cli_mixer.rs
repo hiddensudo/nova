@@ -15,7 +15,7 @@ pub(super) fn dispatch(args: &[&str]) -> Result<(), String> {
             let mut previous = None;
             mixer::run(mixer::RunMode::Manual, || STOP.load(Ordering::Relaxed), |result| {
                 let message = match result {
-                    Ok(state) => format!("Nova mixer · {} застосунків", state.streams.len()),
+                    Ok(state) => format!("Nova mixer · {} applications", state.streams.len()),
                     Err(error) => error,
                 };
                 if previous.as_ref() != Some(&message) {
@@ -51,7 +51,7 @@ pub(super) fn dispatch(args: &[&str]) -> Result<(), String> {
             Ok(())
         }),
         ["volume", channel, percent] => {
-            let percent = percent.parse::<u8>().map_err(|_| "Гучність має бути 0–100.")?;
+            let percent = percent.parse::<u8>().map_err(|_| "Volume must be 0–100.")?;
             Config::change(|config| config.set_level(config.parse(channel)?, percent))
         }
         ["channel", "list"] => {

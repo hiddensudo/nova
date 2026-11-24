@@ -18,10 +18,20 @@ pub(super) fn status(port: &mut dyn HidReports, timeout: Duration) -> Result<Vec
 }
 
 pub(super) fn decode(report: &[u8]) -> Result<[u8; 2], String> {
-    if let [STATUS, 3, _, _, left @ 0..=100, right @ 0..=100, ..] = report {
-        return Ok([*left, *right]);
+    if matches!(report, [STATUS, 3, ..])
+        && let Some(factors) = factors(report)
+    {
+        return Ok(factors);
     }
     Err("The headset did not report a valid ChatMix position.".into())
+}
+
+pub(super) fn factors(report: &[u8]) -> Option<[u8; 2]> {
+    if let [STATUS, _, _, _, left @ 0..=100, right @ 0..=100, ..] = report {
+        Some([*left, *right])
+    } else {
+        None
+    }
 }
 
 #[cfg(test)]

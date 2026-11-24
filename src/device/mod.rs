@@ -22,7 +22,7 @@ const REPORT_SIZE: usize = 65;
 static USB_TRANSACTION: Mutex<()> = Mutex::new(());
 
 pub fn detect() -> Result<String, String> {
-    let model = Model::Nova7Gen2;
+    let model = Model::NOVA_7_GEN2;
     let (path, transport, availability) = match HidrawPort::find(model)? {
         Some(port) => {
             let availability = port.open().map(|_| ());
@@ -46,7 +46,7 @@ pub fn detect() -> Result<String, String> {
 
 #[cfg(feature = "gui")]
 pub fn dongle_present() -> bool {
-    UsbPort::present(Model::Nova7Gen2)
+    UsbPort::present(Model::NOVA_7_GEN2)
 }
 
 pub fn sidetone(operation: Operation) -> Result<Sidetone, String> {
@@ -56,7 +56,7 @@ pub fn sidetone(operation: Operation) -> Result<Sidetone, String> {
 fn with_device<T>(
     operation: impl FnOnce(&mut dyn HidReports) -> Result<T, String>,
 ) -> Result<T, String> {
-    with_model(Model::Nova7Gen2, operation)
+    with_model(Model::NOVA_7_GEN2, operation)
 }
 
 fn with_model<T>(
@@ -77,7 +77,7 @@ fn try_with_device<T>(
     let Some(_process_lock) = transaction::acquire(false)? else {
         return Ok(None);
     };
-    open_device(Model::Nova7Gen2, operation).map(Some)
+    open_device(Model::NOVA_7_GEN2, operation).map(Some)
 }
 
 fn open_device<T>(

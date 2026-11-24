@@ -16,7 +16,7 @@ body:
     id: diagnostics
     attributes:
       label: Read-only status and dial observations
-      description: For 7X Gen 2, use nova-control probe 229e. Include the center and both ends of the wheel. Remove personal information from pasted output.
+      description: Run nova-control probe with one supported dongle connected. Include the center and both ends of the wheel, a reading while charging, and a reading with the headset off. Remove personal information from pasted output.
       render: text
     validations:
       required: true

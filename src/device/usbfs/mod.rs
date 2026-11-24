@@ -22,6 +22,16 @@ pub(super) struct UsbPort {
 }
 
 impl UsbPort {
+    pub fn probe_models() -> Result<Vec<Model>, String> {
+        let devices = fs::read_dir("/sys/bus/usb/devices")
+            .map_err(|error| format!("Cannot access USB devices in sysfs ({error})."))?;
+        Ok(devices
+            .flatten()
+            .filter_map(|entry| device_ids(&entry.path()))
+            .filter_map(|(vendor, product)| Model::for_product(vendor, product))
+            .collect())
+    }
+
     pub fn find(model: Model) -> Result<Self, String> {
         let devices = fs::read_dir("/sys/bus/usb/devices")
             .map_err(|error| format!("Cannot access USB devices in sysfs ({error})."))?;
@@ -124,10 +134,11 @@ fn read(path: &Path, attribute: &str) -> Option<String> {
 }
 
 fn matches_model(device: &Path, model: Model) -> bool {
+    device_ids(device).is_some_and(|(vendor, product)| model.matches(vendor, product))
+}
+
+fn device_ids(device: &Path) -> Option<(u16, u16)> {
     let id =
         |attribute| read(device, attribute).and_then(|value| u16::from_str_radix(&value, 16).ok());
-    match (id("idVendor"), id("idProduct")) {
-        (Some(vendor), Some(product)) => model.matches(vendor, product),
-        _ => false,
-    }
+    Some((id("idVendor")?, id("idProduct")?))
 }

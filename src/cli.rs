@@ -7,7 +7,7 @@ use crate::ui;
 const HELP: &str = "Nova Control — Arctis Nova 7 Wireless Gen 2\n\n\
     nova-control gui             open the Nova Control window\n\
     nova-control detect          find the dongle without sending commands\n\
-    nova-control probe <227e|229e>  read battery and ChatMix for testing\n\
+    nova-control probe [USB PID]  read battery and ChatMix for testing\n\
     nova-control sidetone get    read the current level\n\
     nova-control sidetone set <0|1|2|3>\n\n\
     nova-control sidetone save   save the current level to the headset\n\n\
@@ -46,7 +46,8 @@ fn dispatch(args: &[&str]) -> Result<(), String> {
         ["settings", rest @ ..] => return crate::cli_settings::dispatch(rest),
         ["mixer", rest @ ..] => return crate::cli_mixer::dispatch(rest),
         ["eq", rest @ ..] => return crate::cli_eq::dispatch(rest),
-        ["probe", product] => return device::probe::run(product),
+        ["probe"] => return device::probe::run(None),
+        ["probe", product] => return device::probe::run(Some(product)),
         ["detect"] => return device::detect().map(|port| println!("{port}")),
         ["sidetone", "get"] => Operation::Read,
         ["sidetone", "save"] => Operation::Save,
